@@ -34,6 +34,7 @@ warnings.filterwarnings("ignore")
 counter_photo=0
 
 #prints
+
 def PrintSeriesTrasform(series,p0,p1):
     "ripete le trasformazioni fatte dallo swarm una volta che ha trovato i parametri migliori"
     "poi plotta la serie originale e trasformata e fa un check ricalcolando la bianco loss"
@@ -302,6 +303,8 @@ def FindAutocorrelationMaxLag(series):
 
     peakLags = peaks[0]
     peakHeights = peaks[1]["peak_heights"]
+    #print('peakLags2AAAAAAAAAAAAAA', peakLags)
+    #print('PeakHeights2AAAAAAAAAAAAAA' , peakHeights)
 
 
 
@@ -317,6 +320,53 @@ def FindAutocorrelationMaxLag(series):
 
     else:
         maxPeakLag=0
+
+    return maxPeakLag
+
+def GetFirstAutocorrelationLag(series):
+    # la funzione trova il lag dove c'è il picco massimo di autocorrelazione
+    # viene usata per dare un suggerimento alla PSO per l'inizializzazione delle particelle
+    # in modo che le particelle partono a fare differencing da questo lag
+    result = autocorrelation_plot_Modified(series)
+
+    z95 = 1.959963984540054
+    z99 = 2.5758293035489004
+    lenSeries = len(series)
+
+    threshold99 = z99 / np.sqrt(lenSeries)
+    threshold95 = z95 / np.sqrt(lenSeries)
+    # uso la treshold99 per discriminare i picchi sotto la soglia di rilevanza
+    # uso la prominence settata da me a 0.01 per discriminare picchi "fittizi" cioè picchi locali molto piccoli e irrilevanti
+    peaks = signal.find_peaks(result[1], height=threshold99, prominence=0.01)
+
+    peakLags = peaks[0]
+    peakHeights = peaks[1]["peak_heights"]
+    # print('peakLags2AAAAAAAAAAAAAA', peakLags)
+    # print('PeakHeights2AAAAAAAAAAAAAA' , peakHeights)
+
+    if (len(peakHeights) > 0):
+        FirstPeakLag = peakLags[0]
+
+    else:
+        FirstPeakLag = 0
+
+    return FirstPeakLag
+
+def FindAutocorrelationMaxLag2(series):
+    peakLags = GetAutocorrelationLags(series)
+    peakHeights = GetAutocorrelationLagsHeights(series)
+
+    if (len(peakHeights) > 0):
+        peakMaxValue = max(peakHeights)
+
+        for i in range(0, len(peakHeights)):
+            if (peakHeights[i] == peakMaxValue):
+                positionMaxLag = i
+
+        maxPeakLag = peakLags[positionMaxLag]
+
+    else:
+        maxPeakLag = 0
 
     return maxPeakLag
 
@@ -345,7 +395,38 @@ def GetAutocorrelationLags(series):
     else:
         peakLags=[]
 
+
     return peakLags
+
+def GetAutocorrelationLagsHeights(series):
+    #la funzione trova i vari lag dove c'è un picco di autocorrelazione
+    #questi lag vengono usati come initializzazione della PSO
+    #in modo che le particelle partono a fare differencing da questi lag
+    result = autocorrelation_plot_Modified(series)
+
+    z95 = 1.959963984540054
+    z99 = 2.5758293035489004
+    lenSeries = len(series)
+
+    threshold99 = z99 / np.sqrt(lenSeries)
+    threshold95 = z95 / np.sqrt(lenSeries)
+    # uso la treshold99 per discriminare i picchi sotto la soglia di rilevanza
+    # uso la prominence settata da me a 0.01 per discriminare picchi "fittizi" cioè picchi locali molto piccoli e irrilevanti
+    peaks = signal.find_peaks(result[1], height=threshold99, prominence=0.001)
+
+    peakLags = peaks[0]
+    peakHeights = peaks[1]["peak_heights"]
+
+    if(len(peakHeights)>0):
+        peakLags=peakLags
+        peakHeights = peakHeights
+
+    else:
+        peakLags=[]
+        peakHeights = []
+
+
+    return peakHeights
 
 def FindAutocorrelationPeaksSeason(series):
     #ho modificato leggermente  la soglia per individuare un picco
@@ -666,6 +747,11 @@ def f(x,ser):
     return np.array(j)
 
 def StationarizeWithPSO_Original(series):
+    #questa funzione differisce dall'altra semplicemente nell'inizializzazione dello swarm
+    #qui viene inizializzato l'intero swarm  per la diff al picco massimo di autocorrelazione della serie
+    #la yeojohnson viene inizializzata ad 1
+
+
     seriesOriginal = series
 
     # operazioni per PSO
@@ -730,11 +816,21 @@ def StationarizeWithPSO_Original(series):
     print("SeasonScore =", SeasonScore)
     # Funzioni.PlotZoomed(seriesOriginal,300,400)
 
+    fil=open("D:/Universitaa/TESI/tests/immagini/info.txt","a+")
+    fil.write('\n\n')
+    print(f"Valore minimo: {cost}, Yeojohnson lambda={pos[0]}, DiffByParticle={round(pos[1])}")
+    fil.write('Valore Minimo = '+str(cost)+' Yeojohnson lambda = '+ str(pos[0]) + ' DiffByParticle = '+str(round(pos[1]))+'\n')
+    fil.write('Ar1Score = ' + str(Ar1Score) + ' TrendScore = ' + str(TrendScore)+ ' SeasonScore = '+ str(SeasonScore) +'\n')
+    fil.close()
+
    #result2=[seriesTrasf2,seriesTrasf1,round(pos[1]),pos[0],TrendScore,SeasonScore,Ar1Score,cost]
     result2 = [seriesTrasf2, seriesTrasf1, round(pos[1]), pos[0], TrendScore, SeasonScore, Ar1Score, cost]
     return result2
 
 def StationarizeWithPSO(series):
+    #qui invece lo swarm viene inizializzato con le prime 3  particelle pari al max_autocorr_lag, mentre le altre vengono inizializzate ad altri picchi di autocorrelazione
+    #questo per fare "spaziare" di più la PSO
+    #la yeojohnson viene sempre inizializzata ad 1
     seriesOriginal = series
 
     # operazioni per PSO
@@ -756,7 +852,7 @@ def StationarizeWithPSO(series):
 
     #uso questa seconda inizializzazione, per prendere i primi "swarm" valori dei lag di autocorrelation e non solo il Max
     if(len(auto_lags)==0):
-        auto_lags=[0,1,7,12]
+        auto_lags=[0,1,7]
     initialize2 = list()
     k = 0
     initialize2.append([1.0, init_lag])
@@ -803,128 +899,7 @@ def StationarizeWithPSO(series):
     result2 = [seriesTrasf2, seriesTrasf1, round(pos[1]), pos[0], TrendScore, SeasonScore, Ar1Score, cost]
     return result2
 
-def Stationarize_PSO_Window(series,counter_photo):
-    # la funzione applica crea delle finestre per studiare come varia la trasformazione applicata dalla PSO nel tempo
-    # quindi per studiare come la non stazionarietà varia nel tempo
-    # per rendere le finestre piu generali possibili, ho scelto una grandezza di 5*maxAutocorrelationLag, in modo da essere sicuri di catturare eventuali periodicità
-    # la dimensione della window cambia nel tempo, quando vengono individuati cambiamnti significativi della diff (e.g non multipli e non valori vicini)
-    # e quando viene identificato anche un cambiamento  significaivo dell' maxAutocorrelation lag
-    # a quel punto la serie analizzata fino a quel momento viene droppata, viene ricalcolato il maxAutocorrelationLag sulla serie rimanente e viene ricalcolata la window
 
-    max_autocorrelation_lag = FindAutocorrelationMaxLag(series)
-
-    list_par = list()
-    list_lamb = list()
-    list_score = list()
-    list_window = list()
-    list_series_extracted=list()
-
-    i = 0  # mi fa muovere lungo la serie
-    wind = 5 * max_autocorrelation_lag  # è l'ampiezza della finestra
-    x = 0  # l'inizio della finestra
-    y = wind  # la fine della finestra
-    Count = 0  # mi serve come condizione per analizzare alla fine la serie completa
-    change_station = False  # indica se c'è stato un cambio di stationarietà, serve per estrarre l'ultimo pezzo della serie con non-stazionarietà diversa
-    oldCheckPoint = 0  # inizio di una porzione di serie con una certa non stazionarietà
-    newCheckPoint = 0  # fine di una porizione di serie con una certa non stazionarietà
-
-    while (Count < 2):
-        if (Count == 1):
-            Count = 2
-        batch = series.iloc[x:y]
-        # print('x = {}  y = {} maxlag = {} window = {} '.format(x, y, max_autocorrelation_lag, len(batch)))
-
-        seriesOriginal = batch
-        result = StationarizeWithPSO(batch)
-
-        seriesTrasf2 = result[0]
-        list_par.append(result[2])
-        list_lamb.append(round(result[3], 2))
-        list_score.append(round(result[7], 2))
-        list_window.append((x, y, wind))
-
-        plt.figure()
-        plt.subplot(311)
-        plt.title('window= {} Part= {} lamb= {} score={}'.format(list_window[i], list_par[i], list_lamb[i], list_score[i]))
-        series.plot()
-        batch.plot(color='red')
-        plt.subplot(312)
-        batch.plot(color='red')
-        plt.subplot(313)
-        seriesTrasf2.plot(color='green')
-        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_12_7_30_' + str(counter_photo) + '_.png')
-        counter_photo = counter_photo + 1
-        plt.show()
-
-
-        # print("list_par[i]= {}  list_par[i-1]= {} , i={}".format(list_par[i], list_par[i - 1], i))
-
-        # quando c'è un cambiamento nella diff applicata, allora potrebbe significare che c'è un cambiamento di non stazionarietà
-        # visto che a volte la diff scelta dalla PSO si confonde con la diff giusta e i suoi multipli, faccio un check per controllare se c'è stato un effettivo cambiamento significativo (la diff che si  muove da un multiplo all'altro non è significativo)
-        multiplo = False
-        if (not (list_par[i] != list_par[i - 1] * 2 and list_par[i] != list_par[i - 1] * 3 and list_par[i - 1] !=
-                 list_par[i] * 2 and list_par[i - 1] != list_par[i] * 3 and list_par[i - 1] != list_par[i] * 4)):
-            multiplo = True
-
-        # queste condizioni servono per accorgersi del cambio di stazionarietà.  Visto che a volte la diff si confonde con i multipli della periodicità, ho messo questa condizione con i multipli , in modo da non cambiare finestra in modo sbagliato
-        if ((list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3) and multiplo == False):
-
-            # rimuovo la serie analizzata fin ora
-            seriesHalf = series.drop(series.index[0:y])
-            # ricalcolo il maxAutocorrelationLag con la serie rimanente
-            New_max_autocorrelation_lag = FindAutocorrelationMaxLag(seriesHalf)
-
-            # se il nuovo MaxAutocorrelationLag è cambiato in modo significativo ed è !=0, allora cambio la dimensione della window
-            if (New_max_autocorrelation_lag != 0 and (
-                    New_max_autocorrelation_lag > max_autocorrelation_lag + 3 or New_max_autocorrelation_lag < max_autocorrelation_lag - 3)):
-                max_autocorrelation_lag = New_max_autocorrelation_lag
-                change_station = True
-
-                # estraggo la porzione di serie vista fino ad ora, che avrà una sua non stazionarietà, diversa dalle altre porzioni di serie
-                newCheckPoint = x
-                #nell'estrazione sommo e tolgo wind, così da estrarre solo la dinamica predominante della sottoserie
-                #evitando di prendere i valori di transitori tra una sottoserie e l'altra
-                seriesRemaning = series.drop(series.index[(oldCheckPoint+wind):(newCheckPoint-wind)])
-
-                #seriesRemaning.plot(color='violet')
-                #plt.show()
-
-                seriesExtracted = series.drop(seriesRemaning.index)
-               # seriesExtracted.plot(color='orange')
-                #plt.show()
-                list_series_extracted.append(seriesExtracted)
-                oldCheckPoint = newCheckPoint
-
-        # una volta ricalcolato il max_autocorrelation lag, ricalcolo la dimensione della window
-
-        wind = 5 * max_autocorrelation_lag
-        x = y
-        y = min(len(series), y + wind)
-
-        # se la window arriva all'ultimo valore della serie
-        # fa un'ultima analisi con una window pari alla dimensione della serie
-        # così da fare un'analisi della serie nella sua interezza
-        if (y == len(series) and Count == 0):
-            Count = 1
-            x = 0
-            wind = len(series)
-
-            if (change_station == True):
-                seriesExtracted = series.drop(series.index[0:(newCheckPoint)])
-                #seriesExtracted.plot(color='orange')
-                list_series_extracted.append(seriesExtracted)
-                #plt.show()
-
-            else:
-                list_series_extracted.append(series)
-        i = i + 1
-
-    print('list_par: ', list_par)
-    print('list_lamb: ', list_lamb)
-    print('list_score', list_score)
-    print('list_window', list_window)
-
-    return list_series_extracted
 
 
 
@@ -1508,7 +1483,7 @@ def TestPrediction_AutoArima_Prophet_LSTM(seriesOriginal,seriesTrasf1,seriesTras
     pyplot.subplot(212)
     seriesTrasf2.plot(color='green', label='Trasformed')
     pyplot.legend()
-    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_12_7_30_' + str(counter_photo) + '_.png')
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_' + str(counter_photo) + '.png')
     counter_photo = counter_photo + 1
     pyplot.show()
 
@@ -1524,7 +1499,7 @@ def TestPrediction_AutoArima_Prophet_LSTM(seriesOriginal,seriesTrasf1,seriesTras
     pyplot.legend()
     pyplot.title("AutoARIMATrasf rmse={:.2f}   mae={:.2f}  autcorrRes={:.2f}".format(rmseTrasf2,maeTrasf2, autocorr_residTrasf2))
 
-    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_12_7_30_' + str(counter_photo) + '_.png')
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+ str(counter_photo) +'.png')
     counter_photo = counter_photo + 1
     pyplot.show()
 
@@ -1576,7 +1551,7 @@ def TestPrediction_AutoArima_Prophet_LSTM(seriesOriginal,seriesTrasf1,seriesTras
     pyplot.legend()
     pyplot.title("ProphetTrasf rmse={:.2f}  mae={:.2f}, autocorrRes={:.2f}".format(rmseTrasf2Prop,maeTrasf2Prop,autocorr_residTrasf2_Prop))
 
-    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_12_7_30_' + str(counter_photo) + '_.png')
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+ str(counter_photo) +'.png')
     counter_photo = counter_photo + 1
     pyplot.show()
 
@@ -1612,7 +1587,7 @@ def TestPrediction_AutoArima_Prophet_LSTM(seriesOriginal,seriesTrasf1,seriesTras
     seriesPredictedInvLSTM.plot(color='red', label='PredictedTrasf')
     pyplot.legend()
     pyplot.title("LSTMTrasf rmse={:.2f} mae={:.2f}   autocorrRes={:.2f}".format(rmseTrasf2LSTM,maeTrasf2LSTM,autocorr_residTrasf2_LSTM))
-    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_12_7_30_' + str(counter_photo) + '_.png')
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+ str(counter_photo) +'.png')
     counter_photo = counter_photo + 1
     pyplot.show()
 
@@ -1656,11 +1631,11 @@ def concatSeries(series1,series2):
         concatenatedSeries.append(data)
 
     lastValue=series1[len(series1)-1]
-    avgValue= mean(series1)
+    avgValue= mean(series1[len(series1)-10:len(series1)])
 
 
     for i in range(0,len(series2)):
-        data=series2[i]+avgValue*2.5
+        data=series2[i]+avgValue
         concatenatedSeries.append(data)
 
     concatenatedSeries=Series(concatenatedSeries)
@@ -1687,10 +1662,472 @@ def concatSeries2(series1,series2):
 
 
 
+def Stationarize_PSO_Window(series,counter_photo):
+    # la funzione applica crea delle finestre per studiare come varia la trasformazione applicata dalla PSO nel tempo
+    # quindi per studiare come la non stazionarietà varia nel tempo
+    # per rendere le finestre piu generali possibili, ho scelto una grandezza di 5*maxAutocorrelationLag, in modo da essere sicuri di catturare eventuali periodicità
+    # la dimensione della window cambia nel tempo, quando vengono individuati cambiamnti significativi della diff (e.g non multipli e non valori vicini)
+    # e quando viene identificato anche un cambiamento  significaivo dell' maxAutocorrelation lag
+    # a quel punto la serie analizzata fino a quel momento viene droppata, viene ricalcolato il maxAutocorrelationLag sulla serie rimanente e viene ricalcolata la window
+
+    max_autocorrelation_lag = FindAutocorrelationMaxLag2(series)
+    autocorrelation_peaks = GetAutocorrelationLags(series)
+    autocorrelation_heights = GetAutocorrelationLagsHeights(series)
+    list_par = list()
+    list_lamb = list()
+    list_score = list()
+    list_window = list()
+    list_series_extracted=list()
+
+    i = 0  # mi fa muovere lungo la serie
+    wind = 5 * max_autocorrelation_lag  # è l'ampiezza della finestra
+    x = 0  # l'inizio della finestra
+    y = wind  # la fine della finestra
+    Count = 0  # mi serve come condizione per analizzare alla fine la serie completa
+    change_station = False  # indica se c'è stato un cambio di stationarietà, serve per estrarre l'ultimo pezzo della serie con non-stazionarietà diversa
+    oldCheckPoint = 0  # inizio di una porzione di serie con una certa non stazionarietà
+    newCheckPoint = 0  # fine di una porizione di serie con una certa non stazionarietà
+    num_nonStat_find = 1
+    while (Count < 2):
+        if (Count == 1):
+            Count = 2
+        batch = series.iloc[x:y]
+        # print('x = {}  y = {} maxlag = {} window = {} '.format(x, y, max_autocorrelation_lag, len(batch)))
+
+        seriesOriginal = batch
+        result = StationarizeWithPSO(batch)
+
+        seriesTrasf2 = result[0]
+        list_par.append(result[2])
+        list_lamb.append(round(result[3], 2))
+        list_score.append(round(result[7], 2))
+        list_window.append((x, y, wind))
+
+        plt.figure()
+        plt.subplot(311)
+        plt.title('window= {} Part= {} lamb= {} score={}'.format(list_window[i], list_par[i], list_lamb[i], list_score[i]))
+        series.plot()
+        batch.plot(color='red')
+        plt.subplot(312)
+        batch.plot(color='red')
+        plt.subplot(313)
+        seriesTrasf2.plot(color='green')
+        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn' + str(counter_photo) + '_.png')
+        counter_photo = counter_photo + 1
+        plt.show()
+
+        print('Autocorrelation lag =', max_autocorrelation_lag)
+        print('Autocorrelation peaks= ', autocorrelation_peaks)
+        print('Autocorrelation Heights =', autocorrelation_heights)
+        # print("list_par[i]= {}  list_par[i-1]= {} , i={}".format(list_par[i], list_par[i - 1], i))
+
+        # quando c'è un cambiamento nella diff applicata, allora potrebbe significare che c'è un cambiamento di non stazionarietà
+        # visto che a volte la diff scelta dalla PSO si confonde con la diff giusta e i suoi multipli, faccio un check per controllare se c'è stato un effettivo cambiamento significativo (la diff che si  muove da un multiplo all'altro non è significativo)
+        multiplo = False
+        if (not (list_par[i] != list_par[i - 1] * 2 and list_par[i] != list_par[i - 1] * 3 and  list_par[i] != list_par[i-1] * 4 and list_par[i - 1] !=list_par[i] * 2 and list_par[i - 1] != list_par[i] * 3 and list_par[i - 1] != list_par[i] * 4)):
+            multiplo = True
+
+        # queste condizioni servono per accorgersi del cambio di stazionarietà.  Visto che a volte la diff si confonde con i multipli della periodicità, ho messo questa condizione con i multipli , in modo da non cambiare finestra in modo sbagliato
+        if ((list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3) and multiplo == False):
+            print("list_par[i]  ",list_par[i])
+            print("list_par[i-1]  ",list_par[i-1])
+            # rimuovo la serie analizzata fin ora
+            seriesHalf = series.drop(series.index[0:y])
+            # ricalcolo il maxAutocorrelationLag con la serie rimanente
+            New_max_autocorrelation_lag = FindAutocorrelationMaxLag2(seriesHalf)
+            New_peaks = GetAutocorrelationLags(seriesHalf)
+            New_heights = GetAutocorrelationLagsHeights(seriesHalf)
+            # se il nuovo MaxAutocorrelationLag è cambiato in modo significativo ed è !=0, allora cambio la dimensione della window
+            if (New_max_autocorrelation_lag != 0 and (
+                    New_max_autocorrelation_lag > max_autocorrelation_lag + 1 or New_max_autocorrelation_lag < max_autocorrelation_lag - 1)):
+                max_autocorrelation_lag = New_max_autocorrelation_lag
+                autocorrelation_peaks=New_peaks
+                autocorrelation_heights = New_heights
+
+                change_station = True
+                num_nonStat_find=num_nonStat_find+1
+
+
+                # estraggo la porzione di serie vista fino ad ora, che avrà una sua non stazionarietà, diversa dalle altre porzioni di serie
+                newCheckPoint = x
+                #nell'estrazione sommo e tolgo wind, così da estrarre solo la dinamica predominante della sottoserie
+                #evitando di prendere i valori di transitori tra una sottoserie e l'altra
+                seriesRemaning = series.drop(series.index[(oldCheckPoint+wind):(newCheckPoint-wind)])
+
+                #seriesRemaning.plot(color='violet')
+                #plt.show()
+
+                seriesExtracted = series.drop(seriesRemaning.index)
+                seriesExtracted.plot(color='orange')
+                plt.show()
+                list_series_extracted.append(seriesExtracted)
+                oldCheckPoint = newCheckPoint
+
+        # una volta ricalcolato il max_autocorrelation lag, ricalcolo la dimensione della window
+
+        wind = 5 * max_autocorrelation_lag
+        x = y
+        y = min(len(series), y + wind)
+
+        # se la window arriva all'ultimo valore della serie
+        # fa un'ultima analisi con una window pari alla dimensione della serie
+        # così da fare un'analisi della serie nella sua interezza
+        if (y == len(series) and Count == 0):
+            Count = 1
+            x = 0
+            wind = len(series)
+
+            if (change_station == True):
+                seriesExtracted = series.drop(series.index[0:(newCheckPoint)])
+                #seriesExtracted.plot(color='orange')
+                list_series_extracted.append(seriesExtracted)
+                #plt.show()
+
+            else:
+                list_series_extracted.append(series)
+        i = i + 1
+
+    print('list_par: ', list_par)
+    print('list_lamb: ', list_lamb)
+    print('list_score', list_score)
+    print('list_window', list_window)
+    print('num_nonStat_find ', num_nonStat_find)
+
+    fil=open("D:/Universitaa/TESI/tests/immagini/info.txt","a+")
+    fil.write('Differencing applied :  '+str(list_par)+' \n')
+    fil.write('Y.J. Lambda applied : ' + str(list_lamb)+' \n')
+    fil.write('Scores : '+ str(list_score)+' \n')
+    fil.write('Windows : '+ str(list_window)+ ' \n')
+    fil.write('Numero non stazionarietà trovate : ' + str(num_nonStat_find) + '\n')
+    fil.close()
+
+    return list_series_extracted
+
+def Stationarize_PSO_Window2(series,counter_photo,period1,period2,period3):
+    # la funzione applica crea delle finestre per studiare come varia la trasformazione applicata dalla PSO nel tempo
+    # quindi per studiare come la non stazionarietà varia nel tempo
+    # per rendere le finestre piu generali possibili, ho scelto una grandezza di 5*maxAutocorrelationLag, in modo da essere sicuri di catturare eventuali periodicità
+    # la dimensione della window cambia nel tempo, quando vengono individuati cambiamnti significativi della diff (e.g non multipli e non valori vicini)
+    # e quando viene identificato anche un cambiamento  significaivo dell' maxAutocorrelation lag
+    # a quel punto la serie analizzata fino a quel momento viene droppata, viene ricalcolato il maxAutocorrelationLag sulla serie rimanente e viene ricalcolata la window
+
+    max_autocorrelation_lag = FindAutocorrelationMaxLag2(series)
+    print('MAXXXXXXXXXXX', max_autocorrelation_lag)
+    autocorrelation_peaks = GetAutocorrelationLags(series)
+    autocorrelation_heights = GetAutocorrelationLagsHeights(series)
+    list_par = list()
+    list_lamb = list()
+    list_score = list()
+    list_window = list()
+    list_series_extracted=list()
+    list_autocorrelation_lags=list()
+
+    i = 0  # mi fa muovere lungo la serie
+    wind = 5 * max_autocorrelation_lag  # è l'ampiezza della finestra
+    x = 0  # l'inizio della finestra
+    y = wind  # la fine della finestra
+    Count = 0  # mi serve come condizione per analizzare alla fine la serie completa
+    lastLap = False  #serve per fare l'ultima analisi con windows=len(series)
+    change = False # mi serve per fare la correzione dei lag nell'iterazione in cui c'è cambio di window
+    change_station = False  # indica se c'è stato un cambio di stationarietà, serve per estrarre l'ultimo pezzo della serie con non-stazionarietà diversa
+    oldCheckPoint = 0  # inizio di una porzione di serie con una certa non stazionarietà
+    newCheckPoint = 0  # fine di una porizione di serie con una certa non stazionarietà
+    num_nonStat_find = 1  #serve per tenere traccia di quanti "pezzi di non stazionarietà" sono contenuti nella serie
+    while (Count < 2):
+        if (Count == 1):
+            Count = 2
+        batch = series.iloc[x:y]
+        # print('x = {}  y = {} maxlag = {} window = {} '.format(x, y, max_autocorrelation_lag, len(batch)))
+
+        seriesOriginal = batch
+        result = StationarizeWithPSO(batch)
+        lagBatch= FindAutocorrelationMaxLag2(batch)
+        print('lagBatch   ', lagBatch)
+        seriesTrasf2 = result[0]
+        list_par.append(result[2])
+        list_lamb.append(round(result[3], 2))
+        list_score.append(round(result[7], 2))
+        list_window.append((x, y, wind))
+
+
+        plt.figure()
+        plt.subplot(311)
+        plt.title('window= {} Part= {} lamb= {} score={}'.format(list_window[i], list_par[i], list_lamb[i], list_score[i]))
+        series.plot()
+        batch.plot(color='red')
+        plt.subplot(312)
+        batch.plot(color='red')
+        plt.subplot(313)
+        seriesTrasf2.plot(color='green')
+        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+str(period1)+'_'+str(period2)+'_'+str(period3)+'_' + str(counter_photo) + '_.png')
+        counter_photo = counter_photo + 1
+        plt.show()
+
+        if(lagBatch!=0 and (lagBatch<max_autocorrelation_lag-2 or lagBatch>max_autocorrelation_lag+2)):
+         max_autocorrelation_lag=lagBatch
+         print('111111111111111')
+
+
+
+        if ((list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3) ):
+            max_autocorrelation_lag=lagBatch
+            print('22222222222222222222')
+        # quando c'è un cambiamento nella diff applicata, allora potrebbe significare che c'è un cambiamento di non stazionarietà
+        # visto che a volte la diff scelta dalla PSO si confonde con la diff giusta e i suoi multipli, faccio un check per controllare se c'è stato un effettivo cambiamento significativo (la diff che si  muove da un multiplo all'altro non è significativo)
+        print('Autocorrelation lag =', max_autocorrelation_lag)
+        list_autocorrelation_lags.append(max_autocorrelation_lag)
+
+        # queste condizioni servono per accorgersi del cambio di stazionarietà.  Visto che a volte la diff si confonde con i multipli della periodicità, ho messo questa condizione con i multipli , in modo da non cambiare finestra in modo sbagliato
+        if ((list_autocorrelation_lags[i] > list_autocorrelation_lags[i - 1] + 2 or list_autocorrelation_lags[i] < list_autocorrelation_lags[i - 1] - 2) and lastLap==False):
+            print('3333333333333333')
+            # rimuovo la serie analizzata fin ora
+            seriesHalf = series.drop(series.index[0:y])
+            # ricalcolo il maxAutocorrelationLag con la serie rimanente
+            New_max_autocorrelation_lag = FindAutocorrelationMaxLag2(seriesHalf)
+
+            max_autocorrelation_lag = New_max_autocorrelation_lag
+
+
+            change=True
+            change_station = True
+            num_nonStat_find=num_nonStat_find+1
+
+
+            # estraggo la porzione di serie vista fino ad ora, che avrà una sua non stazionarietà, diversa dalle altre porzioni di serie
+            newCheckPoint = x
+            #nell'estrazione sommo e tolgo wind, così da estrarre solo la dinamica predominante della sottoserie
+            #evitando di prendere i valori di transitori tra una sottoserie e l'altra
+            seriesRemaning = series.drop(series.index[(oldCheckPoint+wind):(newCheckPoint-wind)])
+
+            #seriesRemaning.plot(color='violet')
+            #plt.show()
+
+            seriesExtracted = series.drop(seriesRemaning.index)
+            list_series_extracted.append(seriesExtracted)
+            oldCheckPoint = newCheckPoint
+
+        # una volta ricalcolato il max_autocorrelation lag, ricalcolo la dimensione della window
+
+        wind = 5 * max_autocorrelation_lag
+        x = y
+        y = min(len(series), y + wind)
+
+        if(change==True):
+            batch = series.iloc[x:y]
+            lagBatch = FindAutocorrelationMaxLag2(batch)
+            if (lagBatch != 0):
+                max_autocorrelation_lag = lagBatch
+                list_autocorrelation_lags[i] = max_autocorrelation_lag
+            change=False
+
+        # se la window arriva all'ultimo valore della serie
+        # fa un'ultima analisi con una window pari alla dimensione della serie
+        # così da fare un'analisi della serie nella sua interezza
+        if (y == len(series) and Count == 0):
+            Count = 1
+            x = 0
+            oldwind=wind
+            wind = len(series)
+            lastLap=True
+
+            if (change_station == True):
+                seriesExtracted = series.drop(series.index[0:(newCheckPoint+oldwind)])
+                #seriesExtracted.plot(color='orange')
+                list_series_extracted.append(seriesExtracted)
+                #plt.show()
+
+            else:
+                list_series_extracted.append(series)
+        i = i + 1
+
+    print('list_par: ', list_par)
+    print('list_lamb: ', list_lamb)
+    print('list_score', list_score)
+    print('list_window', list_window)
+    print('num_nonStat_find ', num_nonStat_find)
+
+    fil=open("D:/Universitaa/TESI/tests/immagini/info.txt","a+")
+    fil.write("Period 1 = "+str(period1)+" Period 2 = "+str(period2)+" Period3 = "+str(period3)+"\n")
+    fil.write('Differencing applied :  '+str(list_par)+' \n')
+    fil.write('Y.J. Lambda applied : ' + str(list_lamb)+' \n')
+    fil.write('Scores : '+ str(list_score)+' \n')
+    fil.write('Windows : '+ str(list_window)+ ' \n')
+    fil.write('Numero non stazionarietà trovate : ' + str(num_nonStat_find) + '\n')
+    fil.close()
+
+    k=1
+    for ser in list_series_extracted:
+        ser.plot(color='red')
+        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/series_extracted_' + str(k) + '_.png')
+        plt.show()
+        k=k+1
+
+    return list_series_extracted
+
+
+def Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period4):
+    #in questa versione cambia il modo di estrarre le serie
+
+    # la funzione applica crea delle finestre per studiare come varia la trasformazione applicata dalla PSO nel tempo
+    # quindi per studiare come la non stazionarietà varia nel tempo
+    # per rendere le finestre piu generali possibili, ho scelto una grandezza di 5*maxAutocorrelationLag, in modo da essere sicuri di catturare eventuali periodicità
+    # la dimensione della window cambia nel tempo, quando vengono individuati cambiamnti significativi della diff (e.g non multipli e non valori vicini)
+    # e quando viene identificato anche un cambiamento  significaivo dell' maxAutocorrelation lag
+    # a quel punto la serie analizzata fino a quel momento viene droppata, viene ricalcolato il maxAutocorrelationLag sulla serie rimanente e viene ricalcolata la window
+
+    max_autocorrelation_lag = FindAutocorrelationMaxLag(series)
+    #nel caso in cui non riesce a trovare un max_autocorr_lag all'inizio, a causa delle troppe non stazionarietà che confondono l'autocorrelazione
+    #inizializzo max_auto_lag a 30, in modo da avere una generica finestra di 150, che poi si adatterà successivamente da sola
+    if(max_autocorrelation_lag==0):
+        max_autocorrelation_lag=30
+    print('MAXXXXXXXXXXX', max_autocorrelation_lag)
+    autocorrelation_peaks = GetAutocorrelationLags(series)
+    autocorrelation_heights = GetAutocorrelationLagsHeights(series)
+    list_par = list()
+    list_lamb = list()
+    list_score = list()
+    list_window = list()
+    list_series_extracted=list()
+    list_autocorrelation_lags=list()
+
+    i = 0  # mi fa muovere lungo la serie
+    wind = 5 * max_autocorrelation_lag  # è l'ampiezza della finestra
+    x = 0  # l'inizio della finestra
+    y = wind  # la fine della finestra
+    Count = 0  # mi serve come condizione per analizzare alla fine la serie completa
+    lastLap = False  #serve per fare l'ultima analisi con windows=len(series)
+    change = False # mi serve per fare la correzione dei lag nell'iterazione in cui c'è cambio di window
+    change_station = False  # indica se c'è stato un cambio di stationarietà, serve per estrarre l'ultimo pezzo della serie con non-stazionarietà diversa
+    oldCheckPoint = 0  # inizio di una porzione di serie con una certa non stazionarietà
+    newCheckPoint = 0  # fine di una porizione di serie con una certa non stazionarietà
+    num_nonStat_find = 1  #serve per tenere traccia di quanti "pezzi di non stazionarietà" sono contenuti nella serie
+    while (Count < 2):
+        if (Count == 1):
+            Count = 2
+        batch = series.iloc[x:y]
+        # print('x = {}  y = {} maxlag = {} window = {} '.format(x, y, max_autocorrelation_lag, len(batch)))
+
+        seriesOriginal = batch
+        result = StationarizeWithPSO(batch)
+        lagBatch= FindAutocorrelationMaxLag2(batch)
+        print('lagBatch   ', lagBatch)
+        seriesTrasf2 = result[0]
+        list_par.append(result[2])
+        list_lamb.append(round(result[3], 2))
+        list_score.append(round(result[7], 2))
+        list_window.append((x, y, wind))
+
+
+        plt.figure()
+        plt.subplot(311)
+        plt.title('window= {} Part= {} lamb= {} score={}'.format(list_window[i], list_par[i], list_lamb[i], list_score[i]))
+        series.plot()
+        batch.plot(color='red')
+        plt.subplot(312)
+        batch.plot(color='red')
+        plt.subplot(313)
+        seriesTrasf2.plot(color='green')
+        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+str(period1)+'_'+str(period2)+'_'+str(period3)+'_'+ str(period4)+'_'+ str(counter_photo) + '_.png')
+        counter_photo = counter_photo + 1
+        plt.show()
+
+        if(lagBatch!=0 and (lagBatch<max_autocorrelation_lag-2 or lagBatch>max_autocorrelation_lag+2)):
+         max_autocorrelation_lag=lagBatch
+         print('111111111111111')
+
+
+
+        if ((list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3) ):
+            max_autocorrelation_lag=lagBatch
+            print('22222222222222222222')
+        # quando c'è un cambiamento nella diff applicata, allora potrebbe significare che c'è un cambiamento di non stazionarietà
+        # visto che a volte la diff scelta dalla PSO si confonde con la diff giusta e i suoi multipli, faccio un check per controllare se c'è stato un effettivo cambiamento significativo (la diff che si  muove da un multiplo all'altro non è significativo)
+        print('Autocorrelation lag =', max_autocorrelation_lag)
+        list_autocorrelation_lags.append(max_autocorrelation_lag)
+
+        # queste condizioni servono per accorgersi del cambio di stazionarietà.  Visto che a volte la diff si confonde con i multipli della periodicità, ho messo questa condizione con i multipli , in modo da non cambiare finestra in modo sbagliato
+        if ((list_autocorrelation_lags[i] > list_autocorrelation_lags[i - 1] + 2 or list_autocorrelation_lags[i] < list_autocorrelation_lags[i - 1] - 2) and lastLap==False):
+            print('3333333333333333')
+            # rimuovo la serie analizzata fin ora
+            seriesHalf = series.drop(series.index[0:y])
+            # ricalcolo il maxAutocorrelationLag con la serie rimanente
+            New_max_autocorrelation_lag = FindAutocorrelationMaxLag2(seriesHalf)
+
+            max_autocorrelation_lag = New_max_autocorrelation_lag
+
+
+            change=True
+            change_station = True
+            num_nonStat_find=num_nonStat_find+1
+
+
+            # estraggo la porzione di serie vista fino ad ora, che avrà una sua non stazionarietà, diversa dalle altre porzioni di serie
+
+            newCheckPoint = x-int(wind/2)
 
 
 
 
+            seriesExtracted = series[oldCheckPoint:newCheckPoint]
+            list_series_extracted.append(seriesExtracted)
+            oldCheckPoint = y-int(wind/2)
+
+        # una volta ricalcolato il max_autocorrelation lag, ricalcolo la dimensione della window
+
+        wind = 5 * max_autocorrelation_lag
+        x = y
+        y = min(len(series), y + wind)
+
+        if(change==True):
+            batch = series.iloc[x:y]
+            lagBatch = FindAutocorrelationMaxLag2(batch)
+            if (lagBatch != 0):
+                max_autocorrelation_lag = lagBatch
+                list_autocorrelation_lags[i] = max_autocorrelation_lag
+            change=False
+
+        # se la window arriva all'ultimo valore della serie
+        # fa un'ultima analisi con una window pari alla dimensione della serie
+        # così da fare un'analisi della serie nella sua interezza
+        if (y == len(series) and Count == 0):
+            Count = 1
+            x = 0
+            oldwind=wind
+            wind = len(series)
+            lastLap=True
+
+            if (change_station == True):
+                seriesExtracted = series[oldCheckPoint:y]
+                list_series_extracted.append(seriesExtracted)
+
+
+            else:
+                list_series_extracted.append(series)
+        i = i + 1
+
+    print('list_par: ', list_par)
+    print('list_lamb: ', list_lamb)
+    print('list_score', list_score)
+    print('list_window', list_window)
+    print('num_nonStat_find ', num_nonStat_find)
+
+    fil=open("D:/Universitaa/TESI/tests/immagini/info.txt","a+")
+    fil.write("Period 1 = "+str(period1)+" Period 2 = "+str(period2)+" Period3 = "+str(period3)+ " Period4 =" +str(period4)+"\n")
+    fil.write('Differencing applied :  '+str(list_par)+' \n')
+    fil.write('Y.J. Lambda applied : ' + str(list_lamb)+' \n')
+    fil.write('Scores : '+ str(list_score)+' \n')
+    fil.write('Windows : '+ str(list_window)+ ' \n')
+    fil.write('Numero non stazionarietà trovate : ' + str(num_nonStat_find) + '\n')
+    fil.close()
+
+    k=1
+    for ser in list_series_extracted:
+        ser.plot(color='red')
+        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/series_extracted_' + str(k) + '_.png')
+        plt.show()
+        k=k+1
+
+    return list_series_extracted
 
 
 

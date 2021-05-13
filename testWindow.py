@@ -3,20 +3,32 @@ from pandas import read_csv
 from pandas import Series
 import pandas as pd
 from matplotlib import pyplot as plt
+from pandas.plotting import autocorrelation_plot
 
 global counter_photo
 counter_photo=0
 counter_photo2=100
 
-seriesRead = read_csv('Datasets/Airline_Passengers.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 
+fil= open("D:/Universitaa/TESI/tests/immagini/info.txt","w+")
+fil.write('***** INFO ***** \n')
+fil.close()
 
-synSeries1= Funzioni.GenerateSynSeries(500,50,1,200,1,1/15)
-synSeries2= Funzioni.GenerateSynSeries(500,50,2,100,1,1/9)
-synSeries3= Funzioni.GenerateSynSeries(500,50,-1,100,1,1/23)
+seriesRead = read_csv('Datasets/DailyDelhiClimateTrain.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
+
+period1=7
+period2=32
+period3=28
+period4=13
+
+synSeries1= Funzioni.GenerateSynSeries(500,50,1,100,1,1/period1)
+synSeries2= Funzioni.GenerateSynSeries(500,50,2,100,1,1/period2)
+synSeries3= Funzioni.GenerateSynSeries(500,50,-1,100,1,1/period3)
+synSeries4= Funzioni.GenerateSynSeries(500,50,1,100,1,1/period4)
 
 synSeriesConc = Funzioni.concatSeries(synSeries1,synSeries2)
 synSeriesConc = Funzioni.concatSeries(synSeriesConc,synSeries3)
+synSeriesConc = Funzioni.concatSeries(synSeriesConc,synSeries4)
 
 
 
@@ -27,16 +39,22 @@ synSeriesConc.index=dti1
 
 
 series=synSeriesConc
+#period1='Dehly_Temperatures'
 #series=seriesRead
 
-plt.title("Series original P1=15 P2=23 P3=9")
+
+autocorrelation_plot(series)
+plt.show()
+
+plt.title("Series original P1= "+str(period1)+" P2= "+str(period2)+" P3= "+str(period3)+" P4= "+str(period4)+"")
 series.plot()
-plt.savefig('D:/Universitaa/TESI/tests/immagini/Syn_12_7_30_'+ str(counter_photo)+'_.png')
+plt.savefig('D:/Universitaa/TESI/tests/immagini/0_SeriesOriginal_'+str(period1)+'_'+str(period2)+'_'+str(period3)+'_'+str(period4)+'_'+ str(counter_photo)+'_.png')
+#plt.savefig('D:/Universitaa/TESI/tests/immagini/Manuf_val_ship'+ str(counter_photo)+'_.png')
 counter_photo=counter_photo+1
 plt.show()
 
 
-series_extracted=Funzioni.Stationarize_PSO_Window(series,counter_photo)
+series_extracted=Funzioni.Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period4)
 
 for ser in series_extracted:
     #ser.plot(color='red')
