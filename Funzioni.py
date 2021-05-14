@@ -1980,7 +1980,7 @@ def Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period
     #inizializzo max_auto_lag a 30, in modo da avere una generica finestra di 150, che poi si adatterà successivamente da sola
     if(max_autocorrelation_lag==0):
         max_autocorrelation_lag=30
-    print('MAXXXXXXXXXXX', max_autocorrelation_lag)
+
     autocorrelation_peaks = GetAutocorrelationLags(series)
     autocorrelation_heights = GetAutocorrelationLagsHeights(series)
     list_par = list()
@@ -2008,7 +2008,16 @@ def Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period
         # print('x = {}  y = {} maxlag = {} window = {} '.format(x, y, max_autocorrelation_lag, len(batch)))
 
         seriesOriginal = batch
-        result = StationarizeWithPSO(batch)
+        try:
+            result = StationarizeWithPSO(batch)
+        except:
+
+            seriesExtracted=list()
+            seriesExtracted.append(series)
+
+            return seriesExtracted
+
+
         lagBatch= FindAutocorrelationMaxLag2(batch)
         print('lagBatch   ', lagBatch)
         seriesTrasf2 = result[0]
@@ -2033,13 +2042,13 @@ def Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period
 
         if(lagBatch!=0 and (lagBatch<max_autocorrelation_lag-2 or lagBatch>max_autocorrelation_lag+2)):
          max_autocorrelation_lag=lagBatch
-         print('111111111111111')
+
 
 
 
         if ((list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3) ):
             max_autocorrelation_lag=lagBatch
-            print('22222222222222222222')
+
         # quando c'è un cambiamento nella diff applicata, allora potrebbe significare che c'è un cambiamento di non stazionarietà
         # visto che a volte la diff scelta dalla PSO si confonde con la diff giusta e i suoi multipli, faccio un check per controllare se c'è stato un effettivo cambiamento significativo (la diff che si  muove da un multiplo all'altro non è significativo)
         print('Autocorrelation lag =', max_autocorrelation_lag)
@@ -2047,7 +2056,7 @@ def Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period
 
         # queste condizioni servono per accorgersi del cambio di stazionarietà.  Visto che a volte la diff si confonde con i multipli della periodicità, ho messo questa condizione con i multipli , in modo da non cambiare finestra in modo sbagliato
         if ((list_autocorrelation_lags[i] > list_autocorrelation_lags[i - 1] + 2 or list_autocorrelation_lags[i] < list_autocorrelation_lags[i - 1] - 2) and lastLap==False):
-            print('3333333333333333')
+
             # rimuovo la serie analizzata fin ora
             seriesHalf = series.drop(series.index[0:y])
             # ricalcolo il maxAutocorrelationLag con la serie rimanente
@@ -2062,7 +2071,7 @@ def Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period
 
 
             # estraggo la porzione di serie vista fino ad ora, che avrà una sua non stazionarietà, diversa dalle altre porzioni di serie
-
+            #sottraggo (wind/2) per essere sicuro di non prendere i valori transitori tra una serie e l'altra
             newCheckPoint = x-int(wind/2)
 
 
@@ -2120,12 +2129,12 @@ def Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period
     fil.write('Numero non stazionarietà trovate : ' + str(num_nonStat_find) + '\n')
     fil.close()
 
-    k=1
-    for ser in list_series_extracted:
-        ser.plot(color='red')
-        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/series_extracted_' + str(k) + '_.png')
-        plt.show()
-        k=k+1
+    #k=1
+   # for ser in list_series_extracted:
+        #ser.plot(color='red')
+        #pyplot.savefig('D:/Universitaa/TESI/tests/immagini/series_extracted_' + str(k) + '_.png')
+       # plt.show()
+       # k=k+1
 
     return list_series_extracted
 

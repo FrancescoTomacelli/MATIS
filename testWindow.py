@@ -14,7 +14,7 @@ fil= open("D:/Universitaa/TESI/tests/immagini/info.txt","w+")
 fil.write('***** INFO ***** \n')
 fil.close()
 
-seriesRead = read_csv('Datasets/DailyDelhiClimateTrain.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
+seriesRead = read_csv('Datasets/Electric_Production.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 
 period1=7
 period2=32
@@ -38,9 +38,9 @@ dti1 = pd.date_range("2018-01-01", periods=len(synSeriesConc), freq="D")
 synSeriesConc.index=dti1
 
 
-series=synSeriesConc
-#period1='Dehly_Temperatures'
-#series=seriesRead
+#series=synSeriesConc
+period1='Electric'
+series=seriesRead
 
 
 autocorrelation_plot(series)
@@ -55,10 +55,12 @@ plt.show()
 
 
 series_extracted=Funzioni.Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period4)
-
+k=1
 for ser in series_extracted:
-    #ser.plot(color='red')
-    #plt.show()
+    ser.plot(color='red')
+    plt.savefig('D:/Universitaa/TESI/tests/immagini/series_extracted_' + str(k) + '_.png')
+    plt.show()
+    k=k+1
     result = Funzioni.StationarizeWithPSO_Original(ser)
     seriesOriginal = ser
     seriesTrasf2 = result[0]
