@@ -18850,3 +18850,136 @@ ValueError: User-defined init_pos is out of bounds.
 2021-05-14 13:18:46,118 - fbprophet - INFO - Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
 2021-05-14 13:18:48,282 - fbprophet - INFO - Disabling weekly seasonality. Run prophet with weekly_seasonality=True to override this.
 2021-05-14 13:18:48,283 - fbprophet - INFO - Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
+2021-05-14 15:50:53,502 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:51:05,025 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.11574647395879716, best pos: [0.53273025 6.88043922]
+2021-05-14 15:51:08,212 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:51:20,463 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.07862194246839221, best pos: [0.07790975 5.83019484]
+2021-05-14 15:51:22,340 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:51:36,582 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.016378794380017873, best pos: [0.00231849 0.70575888]
+2021-05-14 15:51:38,493 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:51:46,004 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.053709582365693974, best pos: [0.23471288 0.61020369]
+2021-05-14 15:51:47,176 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:51:52,525 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.27132796008558, best pos: [0.34452765 7.4191405 ]
+2021-05-14 15:51:53,588 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:52:00,727 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.19345303711931308, best pos: [0.16763445 5.81314995]
+2021-05-14 15:52:03,285 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:52:09,673 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.14130420384484527, best pos: [0.92949866 6.52945653]
+2021-05-14 15:52:10,501 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:52:21,264 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.09155983943937651, best pos: [0.00494867 0.18959729]
+2021-05-14 15:52:22,344 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:52:30,146 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.2524194677285005, best pos: [1. 7.]
+2021-05-14 15:52:31,208 - pyswarms.backend.generators - ERROR - Bounds and/or init_pos should be of size (2,)
+Traceback (most recent call last):
+  File "C:\Users\Francesco\anaconda3\envs\MyEnvironment\lib\site-packages\pyswarms\backend\generators.py", line 67, in generate_swarm
+    raise ValueError("User-defined init_pos is out of bounds.")
+ValueError: User-defined init_pos is out of bounds.
+2021-05-14 15:52:31,833 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:52:41,734 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.1779229674176961, best pos: [0.91281071 6.68083235]
+2021-05-14 15:53:12,010 - fbprophet - INFO - Disabling yearly seasonality. Run prophet with yearly_seasonality=True to override this.
+2021-05-14 15:53:14,831 - fbprophet - INFO - Disabling yearly seasonality. Run prophet with yearly_seasonality=True to override this.
+2021-05-14 15:56:48,042 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:56:58,225 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.06445966418074958, best pos: [ 0.90832873 12.4401362 ]
+2021-05-14 15:56:59,269 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:57:07,293 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.18604481740675574, best pos: [0.98459487 6.48680554]
+2021-05-14 15:57:08,191 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:57:16,561 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.16674994182563724, best pos: [3.99702735e-03 6.00725021e+00]
+2021-05-14 15:57:17,318 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:57:22,465 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.2057240521381284, best pos: [1. 0.]
+2021-05-14 15:57:23,282 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:57:29,364 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.1858588477217055, best pos: [0.00316373 1.4706485 ]
+2021-05-14 15:57:30,180 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:57:35,540 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.10557078258053937, best pos: [0.01597494 0.07442294]
+2021-05-14 15:57:36,263 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:57:41,736 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.12642632069883755, best pos: [1. 1.]
+2021-05-14 15:57:42,487 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:57:47,699 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.06846005371727991, best pos: [1. 0.]
+2021-05-14 15:57:48,600 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:57:54,594 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.12045235452697489, best pos: [0.0406025  0.21565242]
+2021-05-14 15:57:55,311 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:58:00,664 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.12518387774884712, best pos: [1. 1.]
+2021-05-14 15:58:01,768 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:58:09,242 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.12474046988421562, best pos: [1. 1.]
+2021-05-14 15:58:10,164 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:58:17,478 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.17546768036317456, best pos: [0.92748925 2.05362088]
+2021-05-14 15:58:18,579 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:58:25,323 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.25182155732961037, best pos: [0.97758609 0.64215188]
+2021-05-14 15:58:26,212 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:58:32,726 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.1060821998303319, best pos: [0.5674576  0.94681711]
+2021-05-14 15:58:33,659 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:58:48,357 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.3706402623133569, best pos: [ 0.02334208 12.46249638]
+2021-05-14 15:58:50,131 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 15:58:58,571 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.2040901145028655, best pos: [0.01240543 6.01608026]
+2021-05-14 15:59:04,787 - fbprophet - INFO - Disabling weekly seasonality. Run prophet with weekly_seasonality=True to override this.
+2021-05-14 15:59:04,787 - fbprophet - INFO - Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
+2021-05-14 15:59:10,523 - fbprophet - INFO - Disabling weekly seasonality. Run prophet with weekly_seasonality=True to override this.
+2021-05-14 15:59:10,524 - fbprophet - INFO - Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
+2021-05-14 15:59:45,322 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:00:54,163 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:01:01,706 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.5106029447962795, best pos: [0.38840709 1.22601948]
+2021-05-14 16:01:02,503 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:01:07,951 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.7113874144172423, best pos: [1. 1.]
+2021-05-14 16:01:08,686 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:01:14,311 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.21532613594061262, best pos: [1. 1.]
+2021-05-14 16:01:15,156 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:01:22,423 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.3800214984387184, best pos: [1. 1.]
+2021-05-14 16:01:23,746 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:01:31,583 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.07664283614334935, best pos: [0.13008743 0.55646635]
+2021-05-14 16:01:32,400 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:01:37,387 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.24707052018841644, best pos: [0.02083327 0.69990899]
+2021-05-14 16:01:38,090 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:01:43,281 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.17930113606329107, best pos: [0.63173276 0.84116223]
+2021-05-14 16:01:44,078 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:01:45,812 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 9999999.06562195, best pos: [  0.34757584 115.08881908]
+2021-05-14 16:01:46,640 - pyswarms.backend.generators - ERROR - Bounds and/or init_pos should be of size (2,)
+Traceback (most recent call last):
+  File "C:\Users\Francesco\anaconda3\envs\MyEnvironment\lib\site-packages\pyswarms\backend\generators.py", line 67, in generate_swarm
+    raise ValueError("User-defined init_pos is out of bounds.")
+ValueError: User-defined init_pos is out of bounds.
+2021-05-14 16:01:47,109 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:02:18,066 - pyswarms.single.global_best - INFO - Optimization finished | best cost: 0.04581069094035419, best pos: [0.05582604 1.20389333]
+2021-05-14 16:02:36,472 - fbprophet - INFO - Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
+2021-05-14 16:02:59,579 - fbprophet - INFO - Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
+2021-05-14 16:03:16,107 - tensorflow - WARNING - Callbacks method `on_train_batch_begin` is slow compared to the batch time (batch time: 0.0000s vs `on_train_batch_begin` time: 0.0156s). Check your callbacks.
+2021-05-14 16:07:53,472 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:08,846 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.4728444599292605, best pos: [0.46891873 1.20444723]
+2021-05-14 16:08:09,819 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:14,301 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -1.4010772934197864, best pos: [0.05245883 0.76306334]
+2021-05-14 16:08:15,225 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:19,677 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.5779964410998082, best pos: [1. 1.]
+2021-05-14 16:08:20,553 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:25,138 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.8774358250925902, best pos: [0.98174824 2.42141158]
+2021-05-14 16:08:25,998 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:30,391 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -1.4504090389105797, best pos: [0.0044342 1.8708232]
+2021-05-14 16:08:31,270 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:35,798 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -1.271255004447387, best pos: [0.99703085 1.64746607]
+2021-05-14 16:08:36,695 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:40,751 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.8882655842425535, best pos: [1. 1.]
+2021-05-14 16:08:41,627 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:45,595 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.6520031548398884, best pos: [1. 1.]
+2021-05-14 16:08:46,438 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:50,686 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -1.0396760273030594, best pos: [0.99715289 2.09596905]
+2021-05-14 16:08:51,575 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:08:55,764 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.5438284627394774, best pos: [0.95851679 2.06508064]
+2021-05-14 16:08:56,636 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:09:01,110 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.823133007782109, best pos: [0.95573871 1.91373295]
+2021-05-14 16:09:02,408 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:09:08,863 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.974234249400921, best pos: [0.0146998  0.06490759]
+2021-05-14 16:09:09,999 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:09:14,931 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.5846760907236577, best pos: [1. 1.]
+2021-05-14 16:09:16,065 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:09:21,739 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -1.029731426336624, best pos: [0.00545515 2.03597984]
+2021-05-14 16:09:22,820 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:09:28,083 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.709227638922251, best pos: [0.70529589 1.83998822]
+2021-05-14 16:09:29,164 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:09:34,543 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.46726569855394756, best pos: [1. 7.]
+2021-05-14 16:09:35,621 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:09:39,650 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.8991933641612468, best pos: [0.01880738 1.0270044 ]
+2021-05-14 16:09:40,778 - pyswarms.backend.generators - ERROR - Bounds and/or init_pos should be of size (2,)
+Traceback (most recent call last):
+  File "C:\Users\Francesco\anaconda3\envs\MyEnvironment\lib\site-packages\pyswarms\backend\generators.py", line 67, in generate_swarm
+    raise ValueError("User-defined init_pos is out of bounds.")
+ValueError: User-defined init_pos is out of bounds.
+2021-05-14 16:09:41,541 - pyswarms.single.global_best - INFO - Optimize for 10 iters with {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+2021-05-14 16:10:18,995 - pyswarms.single.global_best - INFO - Optimization finished | best cost: -0.6160985442542606, best pos: [  0.45338761 366.44881156]
+2021-05-14 16:11:06,903 - fbprophet - INFO - Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
+2021-05-14 16:11:13,562 - fbprophet - INFO - Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.

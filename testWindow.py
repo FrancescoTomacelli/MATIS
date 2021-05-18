@@ -14,7 +14,7 @@ fil= open("D:/Universitaa/TESI/tests/immagini/info.txt","w+")
 fil.write('***** INFO ***** \n')
 fil.close()
 
-seriesRead = read_csv('Datasets/Electric_Production.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
+seriesRead = read_csv('Datasets/daily-min-temperatures.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 
 period1=7
 period2=32
@@ -38,9 +38,9 @@ dti1 = pd.date_range("2018-01-01", periods=len(synSeriesConc), freq="D")
 synSeriesConc.index=dti1
 
 
-#series=synSeriesConc
-period1='Electric'
-series=seriesRead
+series=synSeriesConc
+#period1='daily_min_temperatures'
+#series=seriesRead
 
 
 autocorrelation_plot(series)
