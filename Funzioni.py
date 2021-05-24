@@ -29,6 +29,8 @@ from sklearn.metrics import mean_absolute_error
 import pandas as pd
 from fbprophet.plot import plot_plotly, plot_components_plotly
 warnings.filterwarnings("ignore")
+import winsound
+
 
 
 counter_photo=0
@@ -87,6 +89,10 @@ def PrintSeriesTrasform(series,p0,p1):
         print("la serie originale è stazionaria, nessuna trasformazione è stata effettuata")
         seriesTrasf2=seriesOriginal
         seriesTrasf1=seriesOriginal
+        #quando la serie è stazionaria, non devo applicare nessuna trasformazione
+        #quindi forzo il risultato della pso a Diff=0 e Yeo=1, in modo che non applichi trasformazioni
+        p0=1
+        p1=0
 
 
         #pyplot.title('Serie originale')
@@ -244,7 +250,7 @@ def InvDiffByParticlePredicted(seriesPredicted,trainSetModified,particle):
         # (perchè per invertire un il valore della predizione allo step [i] mi serve il valore della serie originale allo steo [i-particle]
         # che sono cioè gli ultimi "particle" step del train set
         seriesPredictedInv = list()
-        for i in range(0, particle):
+        for i in range(0, min(particle,len(seriesPredicted))):
             value = seriesPredicted[i] + trainSetModified[len(trainSetModified) - particle + i]
             seriesPredictedInv.append(value)
 
@@ -740,10 +746,34 @@ def StationarityFunction(params,ser):
 
     return (TrendStationarityScore(seriesOriginal, seriesTrasf2) + SeasonStationarityScore(seriesTrasf2) + AR1Score(seriesOriginal, seriesTrasf1, seriesTrasf2, round(p1), p0))
 
+def StationarityFunctionSliding(params,ser):
+    # si differenzia dall'originale solo per l'arrotondamento di lambda a 0,0.5,1
+    series=ser
+    seriesOriginal = series
+
+    p0 = params[0]
+    p1 = params[1]
+
+    p0=RoundLambda(p0)
+    # le due istruzioni commentate sotto servono per disattivare le trasformazioni
+    # p0=1
+    # p1=0
+    seriesTrasf1 = YeojohnsonTrasform(series, p0)
+    seriesTrasf2 = DifferencingByParticleValue(seriesTrasf1, round(p1))
+
+    return (TrendStationarityScore(seriesOriginal, seriesTrasf2) + SeasonStationarityScore(seriesTrasf2) + AR1Score(seriesOriginal, seriesTrasf1, seriesTrasf2, round(p1), p0))
+
 def f(x,ser):
     n_particles=x.shape[0]
 
     j=[StationarityFunction(x[i],ser) for i in range(n_particles)]
+    return np.array(j)
+
+def fSliding(x,ser):
+    #si differenzia dall'originale solo per l'arrotondamento di lambda a 0,0.5,1
+    n_particles=x.shape[0]
+
+    j=[StationarityFunctionSliding(x[i],ser) for i in range(n_particles)]
     return np.array(j)
 
 def StationarizeWithPSO_Original(series):
@@ -751,7 +781,7 @@ def StationarizeWithPSO_Original(series):
     #qui viene inizializzato l'intero swarm  per la diff al picco massimo di autocorrelazione della serie
     #la yeojohnson viene inizializzata ad 1
 
-
+    #questa funzione viene usata in windowed statioanrize
     seriesOriginal = series
 
     # operazioni per PSO
@@ -766,12 +796,15 @@ def StationarizeWithPSO_Original(series):
     swarm_size = 10
     num_iters = 10
     yeo_init = random.uniform(min_bound[0],max_bound[0])  # valora casuale per inizializzare le particle della yeotrasform
+
     init_lag = FindAutocorrelationMaxLag(series)
+    print("INIT LAG = ", init_lag)
     auto_lags= GetAutocorrelationLags(series)
     init_value = [1.0,init_lag]  # metto 1.0 come inizializzazione della yeo, perchè voglio partire dal caso piu semplice, cioè non applica la yeo ma applica la diff di lag=maxAutocorrelationLag
+
     initialize = np.array([init_value for i in range(swarm_size)])
 
-    #uso questa seconda inizializzazione, per prendere i primi "swarm" valori dei lag di autocorrelation e non solo il Max
+    #imposto questa seconda inizializzazione, per prendere i primi "swarm" valori dei lag di autocorrelation e non solo il Max
     if(len(auto_lags)==0):
         auto_lags=[0,1,7,12]
     initialize2 = list()
@@ -792,10 +825,96 @@ def StationarizeWithPSO_Original(series):
 
     initialize2 = np.array(initialize2)
 
+    #anche se alla fine l'inizializzazione che prendo è quella originale (inizialize)
     #optimizer= ps.single.GlobalBestPSO(n_particles=swarm_size, dimensions=dimensions, bounds=bounds, options=options)
-    optimizer = ps.single.GlobalBestPSO(n_particles=swarm_size, dimensions=dimensions, bounds=bounds, options=options,init_pos=initialize)
+    optimizer = ps.single.GlobalBestPSO(n_particles=swarm_size, dimensions=dimensions, bounds=bounds, options=options, init_pos=initialize)
     cost, pos = optimizer.optimize(f, iters=num_iters,ser=seriesOriginal)
 
+
+
+    # rileggo la serie per plottarla con PrintSeriesTrasform
+    result = PrintSeriesTrasform(series, pos[0], pos[1])
+    seriesTrasf2 = result[0]
+    seriesTrasf1= result[1]
+    pos[0] = result[2]
+    pos[1] = result[3]
+
+    print(f"Valore minimo: {cost}, Yeojohnson lambda={pos[0]}, DiffByParticle={round(pos[1])}")
+
+    #elimino i primi particle value che sono messi a 0, mantenendo però gli indici
+    #seriesTrasformed=seriesTrasformed.drop(seriesTrasformed.index[0:round(pos[1])])
+
+
+    # StationarityScore= Funzioni.StationarityScore(seriesTrasformed)
+    TrendScore = TrendStationarityScore(seriesOriginal, seriesTrasf2)
+    SeasonScore = SeasonStationarityScore(seriesTrasf2)
+    Ar1Score= cost - TrendScore - SeasonScore
+    print("Ar1Score", cost - TrendScore - SeasonScore)
+    print("TrendScore =", TrendScore)
+    print("SeasonScore =", SeasonScore)
+    # Funzioni.PlotZoomed(seriesOriginal,300,400)
+
+    fil=open("D:/Universitaa/TESI/tests/immagini/info.txt","a+")
+    fil.write('\n\n')
+    print(f"Valore minimo: {cost}, Yeojohnson lambda={pos[0]}, DiffByParticle={round(pos[1])}")
+    fil.write('Valore Minimo = '+str(cost)+' Yeojohnson lambda = '+ str(pos[0]) + ' DiffByParticle = '+str(round(pos[1]))+'\n')
+    fil.write('Ar1Score = ' + str(Ar1Score) + ' TrendScore = ' + str(TrendScore)+ ' SeasonScore = '+ str(SeasonScore) +'\n')
+    fil.close()
+
+   #result2=[seriesTrasf2,seriesTrasf1,round(pos[1]),pos[0],TrendScore,SeasonScore,Ar1Score,cost]
+    result2 = [seriesTrasf2, seriesTrasf1, round(pos[1]), pos[0], TrendScore, SeasonScore, Ar1Score, cost]
+    return result2
+
+
+def StationarizeWithPSO_OriginalSliding(series):
+    #questa funzione differisce dall'altra original, solo per l'assenza della stampa su file
+    #e per l'arrotondamento a 0 , 0.5 ,1 della lambda Y.J
+
+    seriesOriginal = series
+
+    # operazioni per PSO
+    lenSeriesReduced = round(len(series) / 1)
+    options = {'c1': 0.5, 'c2': 0.3, 'w': 0.9}
+    min_bound = np.array([0, 0])
+    max_bound = np.array([1.0, lenSeriesReduced])
+    bounds = (min_bound, max_bound)
+    dimensions = 2
+
+    # operazioni per inizializzare swarm
+    swarm_size = 10
+    num_iters = 10
+    yeo_init = random.uniform(min_bound[0],max_bound[0])  # valora casuale per inizializzare le particle della yeotrasform
+    init_lag = FindAutocorrelationMaxLag(series)
+    auto_lags= GetAutocorrelationLags(series)
+    init_value = [yeo_init,init_lag]  # metto 1.0 come inizializzazione della yeo, perchè voglio partire dal caso piu semplice, cioè non applica la yeo ma applica la diff di lag=maxAutocorrelationLag
+    initialize = np.array([init_value for i in range(swarm_size)])
+
+    #imposto questa seconda inizializzazione, per prendere i primi "swarm" valori dei lag di autocorrelation e non solo il Max
+    if(len(auto_lags)==0):
+        auto_lags=[0,1,7,12]
+    initialize2 = list()
+    k = 0
+    initialize2.append([1.0, init_lag])
+    initialize2.append([1.0, init_lag])
+    for i in range(swarm_size-2):
+        count = len(auto_lags)
+
+        yeo = 1.0
+        lag = auto_lags[k]
+
+        k = k + 1
+        if (k == count):
+            k = 0
+
+        initialize2.append([yeo, lag])
+
+    initialize2 = np.array(initialize2)
+
+    #anche se alla fine l'inizializzazione che prendo è quella originale (inizialize)
+    #optimizer= ps.single.GlobalBestPSO(n_particles=swarm_size, dimensions=dimensions, bounds=bounds, options=options)
+    optimizer = ps.single.GlobalBestPSO(n_particles=swarm_size, dimensions=dimensions, bounds=bounds, options=options,init_pos=initialize)
+    cost, pos = optimizer.optimize(fSliding, iters=num_iters,ser=seriesOriginal)
+    pos[0]= RoundLambda(pos[0])
     print(f"Valore minimo: {cost}, Yeojohnson lambda={pos[0]}, DiffByParticle={round(pos[1])}")
 
     # rileggo la serie per plottarla con PrintSeriesTrasform
@@ -871,16 +990,21 @@ def StationarizeWithPSO(series):
 
     initialize2 = np.array(initialize2)
 
+
+
     #optimizer= ps.single.GlobalBestPSO(n_particles=swarm_size, dimensions=dimensions, bounds=bounds, options=options)
     optimizer = ps.single.GlobalBestPSO(n_particles=swarm_size, dimensions=dimensions, bounds=bounds, options=options,init_pos=initialize2)
     cost, pos = optimizer.optimize(f, iters=num_iters,ser=seriesOriginal)
 
-    print(f"Valore minimo: {cost}, Yeojohnson lambda={pos[0]}, DiffByParticle={round(pos[1])}")
+
 
     # rileggo la serie per plottarla con PrintSeriesTrasform
     result = PrintSeriesTrasform(series, pos[0], pos[1])
     seriesTrasf2 = result[0]
     seriesTrasf1= result[1]
+    pos[0] = result[2]
+    pos[1] = result[3]
+    print(f"Valore minimo: {cost}, Yeojohnson lambda={pos[0]}, DiffByParticle={round(pos[1])}")
 
     #elimino i primi particle value che sono messi a 0, mantenendo però gli indici
     #seriesTrasformed=seriesTrasformed.drop(seriesTrasformed.index[0:round(pos[1])])
@@ -937,6 +1061,37 @@ def ProphetPredictSeries(series,size,train,test):
     rmse=sqrt(mean_squared_error(seriesTest, seriesForecast))
 
     result=[seriesForecast,rmse,seriesTest,seriesTrain]
+
+    return result
+
+def ProphetPredictSeries_Window90(train_set,test_set):
+    # costruisco il dataframe ad hoc per prophet, a partire dalla serie originale
+    dfTrain = DataFrame()
+    dfTrain["ds"] = [train_set.index[i] for i in range(len(train_set))]
+    dfTrain["y"] = [train_set[i] for i in range(len(train_set))]
+
+    dfTest = DataFrame()
+    dfTest["ds"] = [test_set.index[i] for i in range(len(test_set))]
+    dfTest["y"] = [test_set.index[i] for i in range(len(test_set))]
+
+    seriesTest = Series(dfTest["y"])
+    seriesTrain = Series(dfTrain["y"])
+
+    # indico gli step futuri di cui fare la predizione
+    future = DataFrame(dfTest["ds"])
+
+    m = Prophet()
+    m.fit(dfTrain)
+
+    forecast = m.predict(future)
+    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+
+    # trasformo le predizioni in serie, seguendo l'index di dfTest
+    forecastValues = forecast['yhat']
+    seriesForecast = Series(forecastValues)
+    seriesForecast.index = dfTest.index
+
+    result=[seriesForecast]
 
     return result
 
@@ -1099,6 +1254,93 @@ def LSTM_Prediction2(series, size,train,test):
 
     prediction = model.predict(X_test)
     prediction = sc.inverse_transform(prediction)
+
+    forecast = list()
+    for i in range(0, len(prediction)):
+        yhat = prediction[i][0]
+        forecast.append(yhat)
+    forecast = Series(forecast)
+    forecast.index = test_index
+
+    return forecast
+
+def LSTM_Prediction2_Window90(training_set,test_set):
+    # restituisce la serie predetta, seguendo il train e test set fornito
+    # reference:https://towardsdatascience.com/lstm-time-series-forecasting-predicting-stock-prices-using-an-lstm-model-6223e9644a2f
+    df = DataFrame()
+    df["ds"] = [training_set.index[i] for i in range(len(training_set))]
+    df["y"] = [training_set[i] for i in range(len(training_set))]
+
+
+    dfTest= DataFrame()
+    dfTest["ds"] = [test_set.index[i] for i in range(len(test_set))]
+    dfTest["y"] = [test_set[i] for i in range(len(test_set))]
+
+    train=len(training_set)
+    test=len(test_set)
+    #size=len(series)
+    #test=int(max(size*0.1,particle))
+    #train=size-test
+
+
+    test_index = test_set.index
+
+    training_set = df.iloc[:, 1:2].values
+
+
+    # Feature Scaling
+    #sc = MinMaxScaler(feature_range=(0, 1))
+    #training_set_scaled = sc.fit_transform(training_set)
+    training_set_scaled=training_set
+
+    # Creating a data structure with 60 time-steps and 1 output
+    X_train = []
+    y_train = []
+    #original val=60
+    val=1
+    for i in range(val, train - val):
+        X_train.append(training_set_scaled[i - val:i, 0])
+        y_train.append(training_set_scaled[i, 0])
+    X_train, y_train = np.array(X_train), np.array(y_train)
+    X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
+
+    model = Sequential()
+    # Adding the first LSTM layer and some Dropout regularisation
+    model.add(LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], 1)))
+    model.add(Dropout(0.2))
+    # Adding a second LSTM layer and some Dropout regularisation
+    model.add(LSTM(units=50, return_sequences=True))
+    model.add(Dropout(0.2))
+    # Adding a third LSTM layer and some Dropout regularisation
+    model.add(LSTM(units=50, return_sequences=True))
+    model.add(Dropout(0.2))
+    # Adding a fourth LSTM layer and some Dropout regularisation
+    model.add(LSTM(units=50))
+    model.add(Dropout(0.2))
+    # Adding the output layer
+    model.add(Dense(units=1))
+
+    # Compiling the RNN
+    model.compile(optimizer='adam', loss='mean_squared_error')
+
+    # Fitting the RNN to the Training set
+    model.fit(X_train, y_train, epochs=100, batch_size=32)
+
+    # Getting the predicted stock price of 2017
+    dataset_train = df.iloc[:, 1:2]
+    dataset_test = dfTest.iloc[:, 1:2]
+    dataset_total = pd.concat((dataset_train, dataset_test), axis=0)
+    inputs = dataset_total[len(dataset_total) - len(dataset_test) - 60:].values
+    inputs = inputs.reshape(-1, 1)
+    #inputs = sc.transform(inputs)
+    X_test = []
+    for i in range(val, test + val):
+        X_test.append(inputs[i - val:i, 0])
+    X_test = np.array(X_test)
+    X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+
+    prediction = model.predict(X_test)
+    #prediction = sc.inverse_transform(prediction)
 
     forecast = list()
     for i in range(0, len(prediction)):
@@ -1591,20 +1833,384 @@ def TestPrediction_AutoArima_Prophet_LSTM(seriesOriginal,seriesTrasf1,seriesTras
     counter_photo = counter_photo + 1
     pyplot.show()
 
+def TestPrediction_AutoArima_Prophet_LSTM_Window90(seriesOriginal,seriesTrasf1,seriesTrasf2,particle,lamb,counter_photo,train_set,test_set,scaler2):
+    #questa è la versione per fare i test con la trasformazione del primo 90% usando le finestre (scomponendo le non stazionarietà e trasformandole), ricollegando le trasformate e usando la serie trasformata così fatta per la predizione
+    # preparo i train e test sets
+    size = len(seriesOriginal)
+    test = len(test_set)
+    train = len(train_set)
+
+    seriesTrainOriginal = train_set
+    seriesTestOriginal = test_set
+
+    seriesTrainTrasf1 = seriesTrasf1
+
+
+    seriesTrainTrasf2 = seriesTrasf2
+    #seriesTestTrasf2 = seriesTrasf2.iloc[train:]
+
+    train_dataOriginal = seriesTrainOriginal
+    test_dataOriginal = seriesTestOriginal
+
+    train_dataTrasf2 = seriesTrainTrasf2
+    #test_dataTrasf2 = seriesTestTrasf2
+
+    # facciamo la predizione con auto ARIMA della serie originale e calcoliamo rmse
+    modelOriginal = pm.auto_arima(train_dataOriginal, error_action='ignore', trace=True, suppress_warnings=True)
+    forecastOriginal = modelOriginal.predict(test_dataOriginal.shape[0])
+
+    seriesPredictedOriginal = Series(forecastOriginal)
+    seriesPredictedOriginal.index = seriesTestOriginal.index
+
+    rmseOriginal = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedOriginal))
+    maeOriginal = mean_absolute_error(seriesTestOriginal, seriesPredictedOriginal)
+    autocorr_residOriginal = Quantif_Autocorr_Residual(seriesPredictedOriginal, seriesTestOriginal)
+
+    # facciamo la predizione con auto ARIMA della serie trasformata e calcoliamo rmse
+    # elimino i primi particle value settati a 0 che mi sballano il training
+    #train_dataTrasf2 = train_dataTrasf2.drop(train_dataTrasf2.index[0:particle])
+
+    modelTrasf2 = pm.auto_arima(seriesTrasf2, error_action='ignore', trace=True, suppress_warnings=True)
+    forecastTrasf2 = modelTrasf2.predict(test_dataOriginal.shape[0])
+
+    seriesPredictedTrasf2 = Series(forecastTrasf2)
+
+    #de-normalizzo la predizione
+    seriesPredictedTrasf2 = Invert_Normalize_Series(seriesPredictedTrasf2,scaler2)
+
+    #plt.title('AutoArima')
+    #seriesPredictedTrasf2.plot(color='violet')
+    #plt.show()
+    # inverto la predizione
+    seriesPredictedInv = InvDiffByParticlePredicted(seriesPredictedTrasf2, seriesTrainTrasf1, particle)
+    seriesPredictedInv = InverseYeojohnson(seriesPredictedInv, seriesPredictedInv, lamb)
+
+    seriesPredictedInv.index = seriesTestOriginal.index
+
+    rmseTrasf2 = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedInv))
+    maeTrasf2 = mean_absolute_error(seriesTestOriginal, seriesPredictedInv)
+    autocorr_residTrasf2 = Quantif_Autocorr_Residual(seriesPredictedInv, seriesTestOriginal)
+
+
+    # plottiamo le predizioni
+    seriesPredictedTrasf2.index = seriesTestOriginal.index
+    #pyplot.title("AutoARIMA prediction series trasformed before inverting")
+    #seriesPredictedTrasf2.plot(color='red')
+    #seriesTestTrasf2.plot()
+    #pyplot.show()
+
+    pyplot.figure()
+    pyplot.subplot(211)
+    train_set.plot(color='blue', label='Original')
+    pyplot.legend()
+    pyplot.title('Last Transformation Applied  Particle={}  lambda={:.2f}'.format(particle,lamb))
+    pyplot.subplot(212)
+    seriesTrasf2.plot(color='green', label='Trasformed')
+    pyplot.legend()
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_' + str(counter_photo) + '.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    pyplot.figure()
+    pyplot.subplot(311)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedOriginal.plot(color='orange', label='PredictedOriginal')
+    pyplot.legend()
+    pyplot.title("AutoARIMAOrigin  rmse={:.2f}  mae={:.2f}  autocorrRes={:.2f}".format(rmseOriginal, maeOriginal, autocorr_residOriginal))
+    pyplot.subplot(313)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedInv.plot(color='red', label='PredictedTrasf')
+    pyplot.legend()
+    pyplot.title("AutoARIMATrasf rmse={:.2f}   mae={:.2f}  autcorrRes={:.2f}".format(rmseTrasf2,maeTrasf2, autocorr_residTrasf2))
+
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+ str(counter_photo) +'.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    # facciamo le predizioni usando prophet
+    # facciamo predizione usando serie originale
+
+    result1 = ProphetPredictSeries_Window90(train_dataOriginal, test_dataOriginal)
+    forecastOriginalProp = result1[0]
+
+    seriesPredictedOriginalProp = Series(forecastOriginalProp)
+    seriesPredictedOriginalProp.index = seriesTestOriginal.index
+
+    rmseOriginalProp = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedOriginalProp))
+    maeOriginalProp = mean_absolute_error(seriesTestOriginal, seriesPredictedOriginalProp)
+    autocorr_residOriginal_Prop = Quantif_Autocorr_Residual(seriesPredictedOriginalProp, seriesTestOriginal)
+    # facciamo la predizione usando la serie trasformata
+    result = ProphetPredictSeries_Window90(seriesTrasf2, test_dataOriginal)
+    forecastTrasf2Prop = result[0]
+
+    seriesPredictedTrasf2Prop = Series(forecastTrasf2Prop.values)
+
+    # de-normalizzo la predizione
+    seriesPredictedTrasf2Prop = Invert_Normalize_Series(seriesPredictedTrasf2Prop, scaler2)
+
+    #plt.title('Prophet')
+    #seriesPredictedTrasf2Prop.plot(color='violet')
+    #plt.show()
+    seriesTrainTrasf1Val = Series(seriesTrainTrasf1.values)
+    # inverto la predizione
+    seriesPredictedInvProp = InvDiffByParticlePredicted(seriesPredictedTrasf2Prop, seriesTrainTrasf1Val,particle)
+    seriesPredictedInvProp = InverseYeojohnson(seriesPredictedInvProp, seriesPredictedInvProp, lamb)
+
+    seriesPredictedInvProp.index = seriesTestOriginal.index
+
+    rmseTrasf2Prop = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedInvProp))
+    maeTrasf2Prop = mean_absolute_error(seriesTestOriginal, seriesPredictedInvProp)
+    autocorr_residTrasf2_Prop = Quantif_Autocorr_Residual(seriesPredictedInvProp, seriesTestOriginal)
+
+
+    # plottiamo le predizioni
+    #seriesPredictedTrasf2Prop.index = seriesTestOriginal.index
+    #pyplot.title("Prophet prediction series trasformed before inverting")
+    #seriesPredictedTrasf2Prop.plot(color='violet')
+    #seriesTestTrasf2.plot()
+    #pyplot.show()
+
+    pyplot.figure()
+    pyplot.subplot(311)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedOriginalProp.plot(color='orange', label='PredictedOriginal')
+    pyplot.legend()
+    pyplot.title("ProphetOrigin rmse={:.2f}  mae={:.2f} autocorrRes={:.2f}  ".format(rmseOriginalProp, maeOriginalProp,autocorr_residOriginal_Prop))
+    pyplot.subplot(313)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedInvProp.plot(color='red', label='PredictedTrasf')
+    pyplot.legend()
+    pyplot.title("ProphetTrasf rmse={:.2f}  mae={:.2f}, autocorrRes={:.2f}".format(rmseTrasf2Prop,maeTrasf2Prop,autocorr_residTrasf2_Prop))
+
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+ str(counter_photo) +'.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    # facciamo la predizione con LSTM
+    # iniziamo con la serie originale
+    seriesPredictedOriginalLSTM = LSTM_Prediction2_Window90(train_dataOriginal, test_dataOriginal)
+    #calcoliamo rmse,mae e quantifichiamo l'autocorrelazione del residuo
+    rmseOriginalLSTM = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedOriginalLSTM))
+    maeOriginalLSTM = mean_absolute_error(seriesTestOriginal, seriesPredictedOriginalLSTM)
+    autocorr_residOriginal_LSTM= Quantif_Autocorr_Residual(seriesPredictedOriginalLSTM,seriesTestOriginal)
+
+    # facciamo la predizione usando la serie trasformata
+    seriesPredictedTrasf2LSTM = LSTM_Prediction2_Window90(seriesTrasf2, test_dataOriginal)
+
+    # de-normalizzo la predizione
+    seriesPredictedTrasf2LSTM = Invert_Normalize_Series(seriesPredictedTrasf2LSTM, scaler2)
+
+    #plt.title('LSTM')
+    #seriesPredictedTrasf2LSTM.plot(color='violet')
+    #plt.show()
+
+    # inverto la predizione
+    seriesPredictedInvLSTM = InvDiffByParticlePredicted(seriesPredictedTrasf2LSTM, seriesTrainTrasf1, particle)
+    seriesPredictedInvLSTM = InverseYeojohnson(seriesPredictedInvLSTM, seriesPredictedInvLSTM, lamb)
+    seriesPredictedInvLSTM.index = seriesTestOriginal.index
+    # calcoliamo rmse,mae e quantifichiamo l'autocorrelazione del residuo
+    rmseTrasf2LSTM = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedInvLSTM))
+    maeTrasf2LSTM = mean_absolute_error(seriesTestOriginal, seriesPredictedInvLSTM)
+    autocorr_residTrasf2_LSTM = Quantif_Autocorr_Residual(seriesPredictedInvLSTM, seriesTestOriginal)
+
+    #plottiamo la predizione di LSTM
+    pyplot.figure()
+    pyplot.subplot(311)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedOriginalLSTM.plot(color='orange', label='PredictedOriginal')
+    pyplot.legend()
+    pyplot.title("LSTMOrigin rmse={:.2f}  mae={:.2f}  autocorrRes={:.2f}".format(rmseOriginalLSTM, maeOriginalLSTM,autocorr_residOriginal_LSTM))
+    pyplot.subplot(313)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedInvLSTM.plot(color='red', label='PredictedTrasf')
+    pyplot.legend()
+    pyplot.title("LSTMTrasf rmse={:.2f} mae={:.2f}   autocorrRes={:.2f}".format(rmseTrasf2LSTM,maeTrasf2LSTM,autocorr_residTrasf2_LSTM))
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+ str(counter_photo) +'.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    #scriviamo i valori di rmse,mae,autocorr_res su file
+    fil = open("D:/Universitaa/TESI/tests/immagini/info.txt", "a+")
+
+    fil.write('\n\nAuto_Arima_Original :  Rmse =' + str(rmseOriginal) + ' Mae = '+ str(maeOriginal) + ' Autocorr_resid = '+ str(autocorr_residOriginal) + ' \n')
+    fil.write('Prophet_Original :  Rmse =' + str(rmseOriginalProp) + ' Mae = ' + str(maeOriginalProp) + ' Autocorr_resid = ' + str( autocorr_residOriginal_Prop) + ' \n')
+    fil.write('LSTM_Original :  Rmse =' + str(rmseOriginalLSTM) + ' Mae = ' + str(maeOriginalLSTM) + ' Autocorr_resid = ' + str(autocorr_residOriginal_LSTM) + ' \n')
+
+    fil.write('\n\nAuto_Arima_Trasf :  Rmse =' + str(rmseTrasf2) + ' Mae = ' + str(maeTrasf2) + ' Autocorr_resid = ' + str(autocorr_residTrasf2) + ' \n')
+    fil.write('Proohet_Trasf :  Rmse =' + str(rmseTrasf2Prop) + ' Mae = ' + str(maeTrasf2Prop) + ' Autocorr_resid = ' + str(autocorr_residTrasf2_Prop) + ' \n')
+    fil.write('LSTM_Trasf :  Rmse =' + str(rmseTrasf2LSTM) + ' Mae = ' + str(maeTrasf2LSTM) + ' Autocorr_resid = ' + str(autocorr_residTrasf2_LSTM) + ' \n')
+    fil.close()
+
+
+def TestPrediction_AutoArima_Prophet_LSTM_Window90_Pulita(seriesOriginal,seriesTrasf1,seriesTrasf2,particle,lamb,counter_photo,train_set,test_set):
+    #questa è la versione per fare i test con la trasformazione del primo 90% usando le finestre (scomponendo le non stazionarietà e trasformandole), ricollegando le trasformate e usando la serie trasformata così fatta per la predizione
+    # preparo i train e test sets
+
+    train_dataTrasf1 = seriesTrasf1
+    train_dataTrasf2 = seriesTrasf2
+
+
+    # facciamo la predizione con auto ARIMA della serie originale e calcoliamo rmse
+    modelOriginal = pm.auto_arima(train_set, error_action='ignore', trace=True, suppress_warnings=True)
+    forecastOriginal = modelOriginal.predict(test_set.shape[0])
+
+    seriesPredictedOriginal = Series(forecastOriginal)
+    seriesPredictedOriginal.index = test_set.index
+
+    rO= Compute_Rmse_Mae_AutocorrRes(test_set,seriesPredictedOriginal)
+    rmseOriginal = rO[0]
+    maeOriginal = rO[1]
+    autocorr_residOriginal = rO[2]
+
+    # facciamo la predizione con auto ARIMA della serie trasformata e calcoliamo rmse
+    # elimino i primi particle value settati a 0 che mi sballano il training
+    #train_dataTrasf2 = train_dataTrasf2.drop(train_dataTrasf2.index[0:particle])
+
+    modelTrasf2 = pm.auto_arima(train_dataTrasf2, error_action='ignore', trace=True, suppress_warnings=True)
+    forecastTrasf2 = modelTrasf2.predict(test_set.shape[0])
+
+    seriesPredictedTrasf2 = Series(forecastTrasf2)
+
+    # inverto la predizione
+    seriesPredictedInv = InvDiffByParticlePredicted(seriesPredictedTrasf2, train_dataTrasf1, particle)
+    seriesPredictedInv = InverseYeojohnson(seriesPredictedInv, seriesPredictedInv, lamb)
+
+    seriesPredictedInv.index = test_set.index
+
+    rt2= Compute_Rmse_Mae_AutocorrRes(test_set,seriesPredictedInv)
+    rmseTrasf2 = rt2[0]
+    maeTrasf2 = rt2[0]
+    autocorr_residTrasf2 = rt2[0]
+
+
+    # plottiamo le predizioni
+    seriesPredictedTrasf2.index = test_set.index
+
+
+    pyplot.figure()
+    pyplot.subplot(211)
+    seriesOriginal.plot(color='blue', label='Original')
+    pyplot.legend()
+    pyplot.title('Transformation Applied  Particle={}  lambda={:.2f}'.format(particle,lamb))
+    pyplot.subplot(212)
+    seriesTrasf2.plot(color='green', label='Trasformed')
+    pyplot.legend()
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_' + str(counter_photo) + '.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    pyplot.figure()
+    pyplot.subplot(311)
+    test_set.plot(color='blue', label='Original')
+    seriesPredictedOriginal.plot(color='orange', label='PredictedOriginal')
+    pyplot.legend()
+    pyplot.title("AutoARIMAOrigin  rmse={:.2f}  mae={:.2f}  autocorrRes={:.2f}".format(rmseOriginal, maeOriginal, autocorr_residOriginal))
+    pyplot.subplot(313)
+    test_set.plot(color='blue', label='Original')
+    seriesPredictedInv.plot(color='red', label='PredictedTrasf')
+    pyplot.legend()
+    pyplot.title("AutoARIMATrasf rmse={:.2f}   mae={:.2f}  autcorrRes={:.2f}".format(rmseTrasf2,maeTrasf2, autocorr_residTrasf2))
+
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+ str(counter_photo) +'.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    # facciamo le predizioni usando prophet
+    # facciamo predizione usando serie originale
+
+    result1 = ProphetPredictSeries_Window90(train_set, test_set)
+    forecastOriginalProp = result1[0]
+
+    seriesPredictedOriginalProp = Series(forecastOriginalProp)
+    seriesPredictedOriginalProp.index = test_set.index
+
+    rOP= Compute_Rmse_Mae_AutocorrRes(test_set,seriesPredictedOriginalProp)
+    rmseOriginalProp = rOP[0]
+    maeOriginalProp = rOP[1]
+    autocorr_residOriginal_Prop = rOP[2]
+    # facciamo la predizione usando la serie trasformata
+    result = ProphetPredictSeries_Window90(seriesTrasf2, test_set)
+    forecastTrasf2Prop = result[0]
+
+    seriesPredictedTrasf2Prop = Series(forecastTrasf2Prop.values)
+    seriesTrainTrasf1Val = Series(train_dataTrasf1.values)
+    # inverto la predizione
+    seriesPredictedInvProp = InvDiffByParticlePredicted(seriesPredictedTrasf2Prop, seriesTrainTrasf1Val,particle)
+    seriesPredictedInvProp = InverseYeojohnson(seriesPredictedInvProp, seriesPredictedInvProp, lamb)
+
+    seriesPredictedInvProp.index = test_set.index
+
+    rT2P = Compute_Rmse_Mae_AutocorrRes(test_set, seriesPredictedInvProp)
+    rmseTrasf2Prop = rT2P[0]
+    maeTrasf2Prop = rT2P[1]
+    autocorr_residTrasf2_Prop = rT2P[2]
+
+
+    # plottiamo le predizioni
+    seriesPredictedTrasf2Prop.index = test_set.index
+
+
+    pyplot.figure()
+    pyplot.subplot(311)
+    test_set.plot(color='blue', label='Original')
+    seriesPredictedOriginalProp.plot(color='orange', label='PredictedOriginal')
+    pyplot.legend()
+    pyplot.title("ProphetOrigin rmse={:.2f}  mae={:.2f} autocorrRes={:.2f}  ".format(rmseOriginalProp, maeOriginalProp,autocorr_residOriginal_Prop))
+    pyplot.subplot(313)
+    test_set.plot(color='blue', label='Original')
+    seriesPredictedInvProp.plot(color='red', label='PredictedTrasf')
+    pyplot.legend()
+    pyplot.title("ProphetTrasf rmse={:.2f}  mae={:.2f}, autocorrRes={:.2f}".format(rmseTrasf2Prop,maeTrasf2Prop,autocorr_residTrasf2_Prop))
+
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+ str(counter_photo) +'.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    # facciamo la predizione con LSTM
+    # iniziamo con la serie originale
+    seriesPredictedOriginalLSTM = LSTM_Prediction2_Window90(train_set, test_set)
+    #calcoliamo rmse,mae e quantifichiamo l'autocorrelazione del residuo
+    rOL= Compute_Rmse_Mae_AutocorrRes(test_set,seriesPredictedOriginalLSTM)
+    rmseOriginalLSTM = rOL[0]
+    maeOriginalLSTM = rOL[1]
+    autocorr_residOriginal_LSTM = rOL[2]
+
+    # facciamo la predizione usando la serie trasformata
+    seriesPredictedTrasf2LSTM = LSTM_Prediction2_Window90(seriesTrasf2, test_set)
+
+    # inverto la predizione
+    seriesPredictedInvLSTM = InvDiffByParticlePredicted(seriesPredictedTrasf2LSTM, train_dataTrasf1, particle)
+    seriesPredictedInvLSTM = InverseYeojohnson(seriesPredictedInvLSTM, seriesPredictedInvLSTM, lamb)
+    seriesPredictedInvLSTM.index = test_set.index
+    # calcoliamo rmse,mae e quantifichiamo l'autocorrelazione del residuo
+    rT2L= Compute_Rmse_Mae_AutocorrRes(test_set,seriesPredictedInvLSTM)
+    rmseTrasf2LSTM = rT2L[0]
+    maeTrasf2LSTM = rT2L[1]
+    autocorr_residTrasf2_LSTM = rT2L[2]
+
+    #plottiamo la predizione di LSTM
+    pyplot.figure()
+    pyplot.subplot(311)
+    test_set.plot(color='blue', label='Original')
+    seriesPredictedOriginalLSTM.plot(color='orange', label='PredictedOriginal')
+    pyplot.legend()
+    pyplot.title("LSTMOrigin rmse={:.2f}  mae={:.2f}  autocorrRes={:.2f}".format(rmseOriginalLSTM, maeOriginalLSTM,autocorr_residOriginal_LSTM))
+    pyplot.subplot(313)
+    test_set.plot(color='blue', label='Original')
+    seriesPredictedInvLSTM.plot(color='red', label='PredictedTrasf')
+    pyplot.legend()
+    pyplot.title("LSTMTrasf rmse={:.2f} mae={:.2f}   autocorrRes={:.2f}".format(rmseTrasf2LSTM,maeTrasf2LSTM,autocorr_residTrasf2_LSTM))
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+ str(counter_photo) +'.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
 
 #syntetic series generator
 
-def GenerateSynSeries(length,RangeNoise,orderTrend,SinAmpl,fs,f):
+def GenerateSynSeries(length,RangeNoise,orderTrend,SinAmpl,fs,period):
     #creiamo la sine wave
 
-    t = length
-    samples = np.linspace(0, t, int(fs * t), endpoint=False)
-    signal = np.sin(2 * np.pi * f * samples) * SinAmpl
-
-    sineWave = Series(signal)
-
     linearTrend = list()
-    for i in range(0,length):
+    for i in range(0, length):
         data = i * orderTrend
         linearTrend.append(data)
     linearTrend = Series(linearTrend)
@@ -1613,12 +2219,29 @@ def GenerateSynSeries(length,RangeNoise,orderTrend,SinAmpl,fs,f):
     x = [random.randint(-RangeNoise, RangeNoise) for i in range(0, length)]
     x = Series(x)
 
-    synSeries1 = list()
-    for i in range(0, length):
-        data = x[i] + sineWave[i]+linearTrend[i]
-        synSeries1.append(data)
+    if (period!=0):
+        f = 1 / period
+        t = length
+        samples = np.linspace(0, t, int(fs * t), endpoint=False)
+        signal = np.sin(2 * np.pi * f * samples) * SinAmpl
 
-    synSeries1 = Series(synSeries1)
+        sineWave = Series(signal)
+
+        synSeries1 = list()
+        for i in range(0, length):
+            data = x[i] + sineWave[i] + linearTrend[i]
+            synSeries1.append(data)
+
+        synSeries1 = Series(synSeries1)
+
+
+    else:
+        synSeries1 = list()
+        for i in range(0, length):
+            data = x[i]  + linearTrend[i]
+            synSeries1.append(data)
+
+        synSeries1 = Series(synSeries1)
 
     return synSeries1
 
@@ -2138,7 +2761,551 @@ def Stationarize_PSO_Window3(series,counter_photo,period1,period2,period3,period
 
 
 
+def Sliding_Window(series,counter_photo,period1,period2,period3,period4):
+
+    list_par = list()
+    list_lamb = list()
+    list_score = list()
+    list_window = list()
+    list_series_extracted=list()
+    list_autocorrelation_lags=list()
+    lenght=len(series)
+
+
+    wind = 50
+    x = 0  # l'inizio della finestra
+    y = wind  # la fine della finestra
+    i=0
+
+
+    while(y<lenght):
+        batch = series.iloc[x:y]
+
+        result = StationarizeWithPSO_OriginalSliding(batch)
+
+
+        seriesTrasf2 = result[0]
+        list_par.append(result[2])
+        list_lamb.append(round(result[3], 2))
+        list_score.append(round(result[7], 2))
+        list_window.append((x, y, wind))
+
+        plt.figure()
+        plt.subplot(311)
+        plt.title('window= {} Part= {} lamb= {} score={}'.format(list_window[i], list_par[i], list_lamb[i], list_score[i]))
+        series.plot()
+        batch.plot(color='red')
+        plt.subplot(312)
+        batch.plot(color='red')
+        plt.subplot(313)
+        seriesTrasf2.plot(color='green')
+        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_' + str(period1) + '_' + str(period2) + '_' + str(period3) + '_' + str(period4) + '_' + str(counter_photo) + '_.png')
+        counter_photo = counter_photo + 1
+        plt.show()
+
+        x = x + 1
+        y = y + 1
+        i=i+1
 
 
 
 
+    print('list_par: ', list_par)
+    print('list_lamb: ', list_lamb)
+    print('list_score', list_score)
+    print('list_window', list_window)
+
+    differencingSeries=Series(list_par)
+    lambSeries=Series(list_lamb)
+
+    plt.title('DifferencingSeries')
+    differencingSeries.plot(color='violet')
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Storico_Diff.png')
+    plt.show()
+    plt.title('lambSeries')
+    axes = plt.gca()
+    axes.set_ylim([0, 1.5])
+    lambSeries.plot(color='orange')
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Storico_Lamb.png')
+    plt.show()
+
+    fil = open("D:/Universitaa/TESI/tests/immagini/info.txt", "a+")
+    fil.write("Period 1 = " + str(period1) + " Period 2 = " + str(period2) + " Period3 = " + str(period3) + " Period4 =" + str(period4) + "\n")
+    fil.write('Differencing applied :  ' + str(list_par) + ' \n')
+    fil.write('Y.J. Lambda applied : ' + str(list_lamb) + ' \n')
+    fil.write('Scores : ' + str(list_score) + ' \n')
+    fil.write('Windows : ' + str(list_window) + ' \n')
+    fil.close()
+
+
+
+
+    return 0
+
+
+def alarm():
+    duration = 1500  # milliseconds
+    freq = 440  # Hz
+    winsound.Beep(freq, duration)
+
+
+
+def RoundLambda(lamb):
+    if(lamb>=0 and lamb <=0.25):
+        lamb=0
+    if(lamb>=0.25 and lamb <= 0.75):
+        lamb=0.5
+    if(lamb>=0.75 and lamb <=1):
+        lamb=1
+    return lamb
+
+
+def Stationarize_PSO_Window4(series,counter_photo,period1,period2,period3,period4):
+
+    #questa è la versione per 2ndTestWindow (90)
+
+    #la funzione prende in input una serie contenente diverse non stazionarietà
+    #restituisce in output la serie scomposta in sottoserie in base alla non stazionarietà
+
+    # la funzione crea delle finestre per studiare come varia la non stazionarietà della seire, andando ad analizzare come varia la trasformazione applicata dalla PSO nel tempo
+    # per rendere le finestre piu generali possibili, ho scelto una grandezza di 5*maxAutocorrelationLag, in modo da essere sicuri di catturare eventuali periodicità
+    # la dimensione della window cambia nel tempo, quando vengono individuati cambiamnti significativi della diff (e.g non multipli e non valori vicini)
+    # e quando viene identificato anche un cambiamento  significaivo dell' maxAutocorrelation lag
+    # a quel punto la serie analizzata fino a quel momento viene droppata, viene ricalcolato il maxAutocorrelationLag sulla serie rimanente e viene ricalcolata la window
+
+    max_autocorrelation_lag = FindAutocorrelationMaxLag(series)
+    #nel caso in cui non riesce a trovare un max_autocorr_lag all'inizio, a causa delle troppe non stazionarietà che confondono l'autocorrelazione
+    #inizializzo max_auto_lag a 30, in modo da avere una generica finestra di 150, che poi si adatterà successivamente da sola
+    if(max_autocorrelation_lag==0):
+        max_autocorrelation_lag=30
+
+    autocorrelation_peaks = GetAutocorrelationLags(series)
+    autocorrelation_heights = GetAutocorrelationLagsHeights(series)
+    list_par = list()
+    list_lamb = list()
+    list_score = list()
+    list_window = list()
+    list_series_extracted=list()
+    list_autocorrelation_lags=list()
+
+    i = 0  # mi fa muovere lungo la serie
+    wind = 5 * max_autocorrelation_lag  # è l'ampiezza della finestra
+    x = 0  # l'inizio della finestra
+    y = wind  # la fine della finestra
+    Count = 0  # mi serve come condizione per analizzare alla fine la serie completa
+    lastLap = False  #serve per fare l'ultima analisi con windows=len(series)
+    change = False # mi serve per fare la correzione dei lag nell'iterazione in cui c'è cambio di window
+    change_station = False  # indica se c'è stato un cambio di stationarietà, serve per estrarre l'ultimo pezzo della serie con non-stazionarietà diversa
+    oldCheckPoint = 0  # inizio di una porzione di serie con una certa non stazionarietà
+    newCheckPoint = 0  # fine di una porizione di serie con una certa non stazionarietà
+    num_nonStat_find = 1  #serve per tenere traccia di quanti "pezzi di non stazionarietà" sono contenuti nella serie
+    counter_stationarity = 0 #mi serve per contare quante volte capita che la PSO applica diff=0 e lamb=1.0, cioè non applica trasformazioni , perchè se succede spesso allora non taglio la serie ma la considero nella sua interezza
+    while (Count < 2):
+        if (Count == 1):
+            Count = 2
+        batch = series.iloc[x:y]
+
+        seriesOriginal = batch
+        try:
+            result = StationarizeWithPSO(batch)
+
+
+        except:
+
+            seriesExtracted=list()
+            seriesExtracted.append(series)
+            return seriesExtracted
+
+        #se la PSO restituisce diff=0 e lamb=1 significa che la serie è stazionaria, o ci sono delle stazionarietà all'interno della serie, che manderebbero in errore il programma
+        #per questo restituisco semplicemente la serie nella sua totalità
+
+        if(result[2]==0 and result[3]==1.0):
+            counter_stationarity = counter_stationarity+1
+            if(counter_stationarity == 3):
+                seriesExtracted = list()
+                seriesExtracted.append(series)
+                return seriesExtracted
+
+        lagBatch= FindAutocorrelationMaxLag2(batch)
+        #print('lagBatch   ', lagBatch)
+        seriesTrasf2 = result[0]
+        list_par.append(result[2])
+        list_lamb.append(round(result[3], 2))
+        list_score.append(round(result[7], 2))
+        list_window.append((x, y, wind))
+
+
+        plt.figure()
+        plt.subplot(311)
+        plt.title('window= {} Part= {} lamb= {} score={}'.format(list_window[i], list_par[i], list_lamb[i], list_score[i]))
+        series.plot()
+        batch.plot(color='red')
+        plt.subplot(312)
+        batch.plot(color='red')
+        plt.subplot(313)
+        seriesTrasf2.plot(color='green')
+        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+str(period1)+'_'+str(period2)+'_'+str(period3)+'_'+ str(period4)+'_'+ str(counter_photo) + '_.png')
+        counter_photo = counter_photo + 1
+        plt.show()
+
+
+        #questo if mi serve per aggiornare il max_autocorr_lag solo nel caso in cui il max_lag visto nella finestra è cambiato in modo significativo
+        if(lagBatch!=0 and (lagBatch<max_autocorrelation_lag-2 or lagBatch>max_autocorrelation_lag+2)):
+           max_autocorrelation_lag=lagBatch
+
+        #questo if mi serve per aggiornare il max_autocorr_lag solo nel caso in cui ci sono stati cambiamenti significativi della diff
+        if ((list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3) ):
+            max_autocorrelation_lag=lagBatch
+
+        # quando c'è un cambiamento nella diff applicata, allora potrebbe significare che c'è un cambiamento di non stazionarietà
+        # visto che a volte la diff scelta dalla PSO si confonde con la diff giusta e i suoi multipli, faccio un check per controllare se c'è stato un effettivo cambiamento significativo (la diff che si  muove da un multiplo all'altro non è significativo)
+        print('Autocorrelation lag =', max_autocorrelation_lag)
+        list_autocorrelation_lags.append(max_autocorrelation_lag)
+
+        #questo if serve ad accorgersi del cambio di non stazionarietà, andando a confrontare gli ultimi 2 valori di max_autocorr_lag registrati
+        #se i due valori si discostano in modo significativo, allora la non stazionarietà potrebbe essere cambiata
+
+        if ((list_autocorrelation_lags[i] > list_autocorrelation_lags[i - 1] + 2 or list_autocorrelation_lags[i] < list_autocorrelation_lags[i - 1] - 2) and lastLap==False):
+            #quindi vado a ricalcolare il max_autocorrelation_lag con ciò che rimane della serie, droppando la parte analizzata fin ora
+
+            # rimuovo la serie analizzata fin ora
+            seriesHalf = series.drop(series.index[0:y])
+            # ricalcolo il maxAutocorrelationLag con la serie rimanente
+            New_max_autocorrelation_lag = FindAutocorrelationMaxLag2(seriesHalf)
+
+            max_autocorrelation_lag = New_max_autocorrelation_lag
+
+            change=True
+            change_station = True
+            num_nonStat_find=num_nonStat_find+1
+
+
+            # estraggo la porzione di serie vista fino ad ora, che avrà una sua non stazionarietà, diversa dalle altre porzioni di serie
+            #sottraggo (wind/2) per essere sicuro di non prendere i valori transitori tra una serie e l'altra
+            newCheckPoint = x
+            #print('********************************')
+            #print(newCheckPoint)
+            seriesExtracted = series[oldCheckPoint:newCheckPoint]
+            list_series_extracted.append(seriesExtracted)
+            oldCheckPoint = y
+
+        # una volta ricalcolato il max_autocorrelation lag, ricalcolo la dimensione della window
+
+        wind = 5 * max_autocorrelation_lag
+        x = y
+        y = min(len(series), y+wind )
+
+        #questo if serve per aggiornare la finestra a seguito di un cambio di non-stazionarietà
+        if(change==True):
+            batch = series.iloc[x:y]
+            lagBatch = FindAutocorrelationMaxLag2(batch)
+            if (lagBatch != 0):
+                max_autocorrelation_lag = lagBatch
+                list_autocorrelation_lags[i] = max_autocorrelation_lag
+            change=False
+
+        # se la window arriva all'ultimo valore della serie
+        # fa un'ultima analisi con una window pari alla dimensione della serie
+        # così da fare un'analisi della serie nella sua interezza
+        if (y == len(series) and Count == 0):
+            Count = 1
+            x = 0
+            oldwind=wind
+            wind = len(series)
+            lastLap=True
+
+            if (change_station == True):
+                seriesExtracted = series[oldCheckPoint:y]
+                list_series_extracted.append(seriesExtracted)
+            else:
+                list_series_extracted.append(series)
+        i = i + 1
+
+    print('list_par: ', list_par)
+    print('list_lamb: ', list_lamb)
+    print('list_score', list_score)
+    print('list_window', list_window)
+    print('num_nonStat_find ', num_nonStat_find)
+
+    fil=open("D:/Universitaa/TESI/tests/immagini/info.txt","a+")
+    fil.write("Period 1 = "+str(period1)+" Period 2 = "+str(period2)+" Period3 = "+str(period3)+ " Period4 =" +str(period4)+"\n")
+    fil.write('Differencing applied :  '+str(list_par)+' \n')
+    fil.write('Y.J. Lambda applied : ' + str(list_lamb)+' \n')
+    fil.write('Scores : '+ str(list_score)+' \n')
+    fil.write('Windows : '+ str(list_window)+ ' \n')
+    fil.write('Numero non stazionarietà trovate : ' + str(num_nonStat_find) + '\n')
+    fil.close()
+
+    #k=1
+   # for ser in list_series_extracted:
+        #ser.plot(color='red')
+        #pyplot.savefig('D:/Universitaa/TESI/tests/immagini/series_extracted_' + str(k) + '_.png')
+       # plt.show()
+       # k=k+1
+
+    return list_series_extracted
+
+
+
+
+def Compute_Rmse_Mae_AutocorrRes(test_set,seriesPredicted):
+        rmse = sqrt(mean_squared_error(test_set, seriesPredicted))
+        mae = mean_absolute_error(test_set, seriesPredicted)
+        autocorr_resid = Quantif_Autocorr_Residual(seriesPredicted, test_set)
+        result = [rmse,mae,autocorr_resid]
+        return result
+
+
+def Normalize_Series(series):
+    values = series.values
+    values = values.reshape((len(values), 1))
+
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaler = scaler.fit(values)
+
+    normalized = scaler.transform(values)
+
+    serNorm = [i[0] for i in normalized]
+    serNorm = Series(serNorm)
+    serNorm.index = series.index
+
+    return [serNorm, scaler]
+
+def Invert_Normalize_Series(series_normalized, scaler):
+    values = series_normalized.values
+    values = values.reshape((len(values), 1))
+
+    inversed = scaler.inverse_transform(values)
+
+    serNormInv = [i[0] for i in inversed]
+    serNormInv = Series(serNormInv)
+    serNormInv.index = series_normalized.index
+
+    return serNormInv
+
+
+def Stationarize_PSO_Window5(series,counter_photo,period1,period2,period3,period4):
+    #questa è la versione per 2ndTestWindow (90)
+
+    #questa versione a differenza della 4, cerca di catturare anche le parti dove non c'è non-stazionarietà quindi dove la serie è stazionaria,
+    # allaragando in modo incrementale la finestra quando trova stazionarietà
+    # l'obiettivo è riuscire a scomporre le serie come il covid nelle sue componenti stazionarie (estate) e non-stazionarie (ondate)
+
+    #la funzione prende in input una serie contenente diverse non stazionarietà
+    #restituisce in output la serie scomposta in sottoserie in base alla non stazionarietà
+
+    # la funzione crea delle finestre per studiare come varia la non stazionarietà della seire, andando ad analizzare come varia la trasformazione applicata dalla PSO nel tempo
+    # per rendere le finestre piu generali possibili, ho scelto una grandezza di 5*maxAutocorrelationLag, in modo da essere sicuri di catturare eventuali periodicità
+    # la dimensione della window cambia nel tempo, quando vengono individuati cambiamnti significativi della diff (e.g non multipli e non valori vicini)
+    # e quando viene identificato anche un cambiamento  significaivo dell' maxAutocorrelation lag
+    # a quel punto la serie analizzata fino a quel momento viene droppata, viene ricalcolato il maxAutocorrelationLag sulla serie rimanente e viene ricalcolata la window
+
+    max_autocorrelation_lag = FindAutocorrelationMaxLag(series)
+    #nel caso in cui non riesce a trovare un max_autocorr_lag all'inizio, a causa delle troppe non stazionarietà che confondono l'autocorrelazione
+    #inizializzo max_auto_lag a 30, in modo da avere una generica finestra di 150, che poi si adatterà successivamente da sola
+    if(max_autocorrelation_lag==0):
+        max_autocorrelation_lag=30
+
+    autocorrelation_peaks = GetAutocorrelationLags(series)
+    autocorrelation_heights = GetAutocorrelationLagsHeights(series)
+    list_par = list()
+    list_lamb = list()
+    list_score = list()
+    list_window = list()
+    list_series_extracted=list()
+    list_autocorrelation_lags=list()
+
+    i = 0  # mi fa muovere lungo la serie
+    wind = 5 * max_autocorrelation_lag  # è l'ampiezza della finestra
+    x = 0  # l'inizio della finestra
+    y = wind  # la fine della finestra
+
+    tmp_wind=wind
+    tmp_counter=2
+
+    Count = 0  # mi serve come condizione per analizzare alla fine la serie completa
+    lastLap = False  #serve per fare l'ultima analisi con windows=len(series)
+    change = False # mi serve per fare la correzione dei lag nell'iterazione in cui c'è cambio di window
+    change_station = False  # indica se c'è stato un cambio di stationarietà, serve per estrarre l'ultimo pezzo della serie con non-stazionarietà diversa
+    oldCheckPoint = 0  # inizio di una porzione di serie con una certa non stazionarietà
+    newCheckPoint = 0  # fine di una porizione di serie con una certa non stazionarietà
+    num_nonStat_find = 1  #serve per tenere traccia di quanti "pezzi di non stazionarietà" sono contenuti nella serie
+    nuova_stazionarieta=True
+    while (Count < 2):
+        if (Count == 1):
+            Count = 2
+        batch = series.iloc[x:y]
+
+        seriesOriginal = batch
+        try:
+            result = StationarizeWithPSO(batch)
+        except:
+
+            seriesExtracted=list()
+            seriesExtracted.append(series)
+            return seriesExtracted
+
+
+        lagBatch= FindAutocorrelationMaxLag2(batch)
+        #print('lagBatch   ', lagBatch)
+        seriesTrasf2 = result[0]
+        list_par.append(result[2])
+        list_lamb.append(round(result[3], 2))
+        list_score.append(round(result[7], 2))
+        list_window.append((x, y, wind))
+
+
+        plt.figure()
+        plt.subplot(311)
+        plt.title('window= {} Part= {} lamb= {} score={}'.format(list_window[i], list_par[i], list_lamb[i], list_score[i]))
+        series.plot()
+        batch.plot(color='red')
+        plt.subplot(312)
+        batch.plot(color='red')
+        plt.subplot(313)
+        seriesTrasf2.plot(color='green')
+        pyplot.savefig('D:/Universitaa/TESI/tests/immagini/Syn_'+str(period1)+'_'+str(period2)+'_'+str(period3)+'_'+ str(period4)+'_'+ str(counter_photo) + '_.png')
+        counter_photo = counter_photo + 1
+        plt.show()
+
+        if(list_par[i]==0 and list_lamb[i]==1):
+
+            if(nuova_stazionarieta==True):
+                nuova_stazionarieta=False
+                # rimuovo la serie analizzata fin ora
+                seriesHalf = series.drop(series.index[0:y])
+                # ricalcolo il maxAutocorrelationLag con la serie rimanente
+                New_max_autocorrelation_lag = FindAutocorrelationMaxLag2(seriesHalf)
+
+                max_autocorrelation_lag = New_max_autocorrelation_lag
+
+                change = True
+                change_station = True
+                num_nonStat_find = num_nonStat_find + 1
+
+                # estraggo la porzione di serie vista fino ad ora, che avrà una sua non stazionarietà, diversa dalle altre porzioni di serie
+                # sottraggo (wind/2) per essere sicuro di non prendere i valori transitori tra una serie e l'altra
+                newCheckPoint = x
+                # print('********************************')
+                # print(newCheckPoint)
+                seriesExtracted = series[oldCheckPoint:newCheckPoint]
+                seriesExtracted.plot(color='black')
+                plt.show()
+                list_series_extracted.append(seriesExtracted)
+                oldCheckPoint = y
+
+            print('STAZIONARIOOOOOO')
+            wind = wind+tmp_wind
+            x = x
+            y = min(len(series), y + wind)
+            tmp_counter=tmp_counter+1
+            list_autocorrelation_lags.append(0)
+
+        else:
+            # questo if mi serve per aggiornare il max_autocorr_lag solo nel caso in cui il max_lag visto nella finestra è cambiato in modo significativo
+            if (lagBatch != 0 and (lagBatch < max_autocorrelation_lag - 2 or lagBatch > max_autocorrelation_lag + 2)):
+                max_autocorrelation_lag = lagBatch
+
+            # questo if mi serve per aggiornare il max_autocorr_lag solo nel caso in cui ci sono stati cambiamenti significativi della diff
+            if ((list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3)):
+                max_autocorrelation_lag = lagBatch
+
+            # quando c'è un cambiamento nella diff applicata, allora potrebbe significare che c'è un cambiamento di non stazionarietà
+            # visto che a volte la diff scelta dalla PSO si confonde con la diff giusta e i suoi multipli, faccio un check per controllare se c'è stato un effettivo cambiamento significativo (la diff che si  muove da un multiplo all'altro non è significativo)
+            print('Autocorrelation lag =', max_autocorrelation_lag)
+            list_autocorrelation_lags.append(max_autocorrelation_lag)
+
+            # questo if serve ad accorgersi del cambio di non stazionarietà, andando a confrontare gli ultimi 2 valori di max_autocorr_lag registrati
+            # se i due valori si discostano in modo significativo, allora la non stazionarietà potrebbe essere cambiata
+
+            if ((list_autocorrelation_lags[i] > list_autocorrelation_lags[i - 1] + 2 or list_autocorrelation_lags[i] <
+                 list_autocorrelation_lags[i - 1] - 2) and lastLap == False):
+                # quindi vado a ricalcolare il max_autocorrelation_lag con ciò che rimane della serie, droppando la parte analizzata fin ora
+
+                # rimuovo la serie analizzata fin ora
+                seriesHalf = series.drop(series.index[0:y])
+                # ricalcolo il maxAutocorrelationLag con la serie rimanente
+                New_max_autocorrelation_lag = FindAutocorrelationMaxLag2(seriesHalf)
+
+                max_autocorrelation_lag = New_max_autocorrelation_lag
+
+                change = True
+                change_station = True
+                num_nonStat_find = num_nonStat_find + 1
+
+                # estraggo la porzione di serie vista fino ad ora, che avrà una sua non stazionarietà, diversa dalle altre porzioni di serie
+                # sottraggo (wind/2) per essere sicuro di non prendere i valori transitori tra una serie e l'altra
+                newCheckPoint = x
+                # print('********************************')
+                # print(newCheckPoint)
+                seriesExtracted = series[oldCheckPoint:newCheckPoint]
+                seriesExtracted.plot(color='black')
+                plt.show()
+                list_series_extracted.append(seriesExtracted)
+                oldCheckPoint = y
+
+            # una volta ricalcolato il max_autocorrelation lag, ricalcolo la dimensione della window
+
+            if(max_autocorrelation_lag!=0):
+                wind = 5 * max_autocorrelation_lag
+            else:
+                wind=tmp_wind
+
+            x = y
+            y = min(len(series), y + wind)
+            nuova_stazionarieta=True
+            tmp_wind=wind
+            tmp_counter=2
+
+
+
+
+        #questo if serve per aggiornare la finestra a seguito di un cambio di non-stazionarietà
+        if(change==True):
+            batch = series.iloc[x:y]
+            lagBatch = FindAutocorrelationMaxLag2(batch)
+            if (lagBatch != 0):
+                max_autocorrelation_lag = lagBatch
+                list_autocorrelation_lags[i] = max_autocorrelation_lag
+            change=False
+
+        # se la window arriva all'ultimo valore della serie
+        # fa un'ultima analisi con una window pari alla dimensione della serie
+        # così da fare un'analisi della serie nella sua interezza
+        if (y == len(series) and Count == 0):
+            Count = 1
+            x = 0
+            oldwind=wind
+            wind = len(series)
+            lastLap=True
+
+            if (change_station == True):
+                seriesExtracted = series[oldCheckPoint:y]
+                list_series_extracted.append(seriesExtracted)
+            else:
+                list_series_extracted.append(series)
+        i = i + 1
+
+    print('list_par: ', list_par)
+    print('list_lamb: ', list_lamb)
+    print('list_score', list_score)
+    print('list_window', list_window)
+    print('num_nonStat_find ', num_nonStat_find)
+
+    fil=open("D:/Universitaa/TESI/tests/immagini/info.txt","a+")
+    fil.write("Period 1 = "+str(period1)+" Period 2 = "+str(period2)+" Period3 = "+str(period3)+ " Period4 =" +str(period4)+"\n")
+    fil.write('Differencing applied :  '+str(list_par)+' \n')
+    fil.write('Y.J. Lambda applied : ' + str(list_lamb)+' \n')
+    fil.write('Scores : '+ str(list_score)+' \n')
+    fil.write('Windows : '+ str(list_window)+ ' \n')
+    fil.write('Numero non stazionarietà trovate : ' + str(num_nonStat_find) + '\n')
+    fil.close()
+
+    #k=1
+   # for ser in list_series_extracted:
+        #ser.plot(color='red')
+        #pyplot.savefig('D:/Universitaa/TESI/tests/immagini/series_extracted_' + str(k) + '_.png')
+       # plt.show()
+       # k=k+1
+
+    return list_series_extracted
