@@ -6,17 +6,17 @@ from matplotlib import pyplot as plt
 from pandas import DataFrame
 from pandas.plotting import autocorrelation_plot
 import numpy as np
+from numpy import random
+from scipy.stats import yeojohnson
+
 
 global counter_photo
 counter_photo=0
 counter_photo2=100
 
 
-fil= open("D:/Universitaa/TESI/tests/immagini/info.txt","w+")
-fil.write('***** INFO ***** \n')
-fil.close()
 
-seriesRead = read_csv('Datasets/mon_drug_sales.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
+seriesRead = read_csv('Datasets/covidNuoviPositivi.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 
 period1=0
 period2=0
@@ -24,11 +24,25 @@ period3=0
 period4=0
 period5=0
 
-synSeries1= Funzioni.GenerateSynSeries(1500,200,0,100,1,period1)
-#synSeries2= Funzioni.GenerateSynSeries(500,50,2,100,1,period2)
-#synSeries3= Funzioni.GenerateSynSeries(500,50,-1,100,1,period3)
-#synSeries4= Funzioni.GenerateSynSeries(500,50,0,100,1,period4)
-#synSeries5= Funzioni.GenerateSynSeries(500,50,1,100,1,period5)
+trend1=0
+trend2=0
+trend3=0
+trend4=0
+trend5=0
+
+fil= open("D:/Universitaa/TESI/tests/immagini/info.txt","w+")
+fil.write('***** INFO ***** \n')
+fil.write("Period 1 = "+str(period1)+" Period 2 = "+str(period2)+" Period 3 = "+str(period3)+ " Period 4 =" +str(period4)+"\n")
+fil.write( "Trend 1 = "+str(trend1)+" Trend 2 = "+str(trend2)+" Trend 3 = "+str(trend3)+" Trend 4 = "+str(trend4)+" Trend 5 = "+str(trend5)+"\n")
+fil.close()
+
+
+random.seed(9001)
+synSeries1= Funzioni.GenerateSynSeries(500,50,trend1,100,1,period1)
+#synSeries2= Funzioni.GenerateSynSeries(500,50,trend2,100,1,period2)
+#synSeries3= Funzioni.GenerateSynSeries(500,50,trend3,100,1,period3)
+#synSeries4= Funzioni.GenerateSynSeries(500,50,trend3,100,1,period4)
+#synSeries5= Funzioni.GenerateSynSeries(500,50,trend5,100,1,period5)
 
 
 synSeriesConc = synSeries1
@@ -38,17 +52,16 @@ synSeriesConc = synSeries1
 #synSeriesConc = Funzioni.concatSeries(synSeriesConc,synSeries5)
 
 
-
 dti1 = pd.date_range("2018-01-01", periods=len(synSeriesConc), freq="D")
 
 
 
 synSeriesConc.index=dti1
 
-series=synSeriesConc
+#series=synSeriesConc
 
-#period1='Monthly_Drug_Sales'
-#series=seriesRead
+period1='Covid_Nuovi_Positivi'
+series=seriesRead
 
 
 #divido la serie in train set e test set
@@ -100,6 +113,9 @@ series_extracted=Funzioni.Stationarize_PSO_Window4(train_set,counter_photo,perio
 extr_count=0
 for ser in series_extracted:
 
+    #seriesTrasf1, lamb = yeojohnson(ser)
+    #seriesTrasf1 = Series(seriesTrasf1)
+    #result = Funzioni.StationarizeWithPSO_withoutYeo(seriesTrasf1,lamb)
     result = Funzioni.StationarizeWithPSO_Original(ser)
     seriesTrasf1 = result[1]
     seriesTrasf2 = result[0]
