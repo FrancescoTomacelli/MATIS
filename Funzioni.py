@@ -32,6 +32,7 @@ warnings.filterwarnings("ignore")
 import winsound
 import xlsxwriter
 from datetime import datetime
+from darts import TimeSeries
 
 
 
@@ -520,6 +521,50 @@ def TrendStationarityScore(seriesOriginal,series):
     serRange = serMax - serMin
     return TrendStationarityScoreFin/serRange
 
+def TrendStationarityScoreADJ(seriesOriginal,series):
+    #questo score adj serve per cercare di stabilizzare YJ senza far desatabilizzare la diff
+
+    # come computo il trendStationarityScore
+    # piu il punteggio è basso (negativo) e piu la serie è stazionaria
+    # partiamo dal valore ADF statistic (più è piccolo e piu la serie è stazionario) restituito da adfuller()
+    # se il valore è sotto la soglia del 10%, gli diamo un bonus e sottrariamo al punteggio attuale il valore della soglia arrivando a un punteggio piu basso e quindi piu stazionario
+    # se è sotto la soglia del 5% gli togliamo il valore della soglia *2
+    # se è sotto l'1% ci togliamo il valore della soglia *3  (perchè la soglia dell'1% è la piu difficile da superare)
+    # se invece il valore ADF statistic è maggiore del valore della soglia, glielo andiamo a sommare (cambiando il segno perchè le soglie sono sempre negative), facendo aumentare il punteggio e quindi aumentare la NON stazionarietà
+    # con i fattori moltiplicativi inversi, perchè essere maggiore dell 10% è piu grave dell'essere maggiore del 1%
+    # quindi se è sopra il 10%  aggiungo la soglia moltiplicata per 3, se è sopra il 5% aggiungo la soglia moltiplicata per 2, se è sopra 1% aggiungo la soglia
+
+    # null ipotesis= series is non stationary  (fail to reject= non stationary)
+    # rejecting the null ipotesis = la serie è stationary
+    # the more negative is the ADF statistic, the more likely we reject the null ipotesi
+    # cioè the more negative is the ADF, the more la serie è trend stazionaria
+    # se l'ADF è inferiore al critical value all'1%, possiamo affermare che la serie è  trend stazionaria
+    # con un livello di fiducia pari all 1%, cioè la probabilità che ci stiamo sbagiando è inferiore all' 1%
+    result = adfuller(series)
+
+    TrendStationarityScoreInit = result[0]
+    TrendStationarityScoreFin = TrendStationarityScoreInit
+
+    if (TrendStationarityScoreInit < result[4]['10%']):
+        TrendStationarityScoreFin = TrendStationarityScoreFin + result[4]['10%'] * 0.4
+    else:
+        TrendStationarityScoreFin = TrendStationarityScoreFin - result[4]['10%'] * 0.6
+    if (TrendStationarityScoreInit < result[4]['5%']):
+        TrendStationarityScoreFin = TrendStationarityScoreFin + result[4]['5%'] * 0.5
+    else:
+        TrendStationarityScoreFin = TrendStationarityScoreFin - result[4]['5%'] * 0.5
+    if (TrendStationarityScoreInit < result[4]['1%']):
+        TrendStationarityScoreFin = TrendStationarityScoreFin + result[4]['1%'] * 0.6
+    else:
+        TrendStationarityScoreFin = TrendStationarityScoreFin - result[4]['1%'] * 0.4
+
+    #calcolo range series
+    serMax = series.max()
+    serMin = series.min()
+    serRange = serMax - serMin
+    TrendStationarityScoreFin = NormalizeScore(TrendStationarityScoreFin,seriesOriginal) * 2
+    return TrendStationarityScoreFin
+
 def SeasonStationarityScore(series):
     # per la season stationality, posso usare i picchi che superano la soglia dell'autocorrelation
     # quindi quantifico facendo Valore= AltezzaPicco-Soglia99
@@ -634,11 +679,14 @@ def AR1Score(seriesOriginal, seriesTrasf1, seriesTrasf2, particle, lamb):
         # plt.title("Particle = {}   lambda= {}   rmse/range={}".format(particle, lamb, rmseRange))
         # plt.show()
 
+
         return rmseRange
 
     except:
         #print('Errore AutoAR1 , particle= {}  lamb={}'.format(particle,lamb))
         return 9999999
+
+
 
 def AR1Score_withoutYeo(seriesOriginal, seriesTrasf1, seriesTrasf2, particle, lamb):
     #questa funzione prende la serie trasformata in input
@@ -894,6 +942,7 @@ def f_withoutYeo(x,ser,lamb,serieORIGINALE):
 
 def StationarizeWithPSO_Original(series,i_test,i_ciclo):
     #è la funzione stationarize originale
+    #è la PSO che viene usata sui pezzi di serie estratti
 
 
     #qui viene inizializzato l'intero swarm  per la diff al picco massimo di autocorrelazione della serie
@@ -967,6 +1016,7 @@ def StationarizeWithPSO_Original(series,i_test,i_ciclo):
     TrendScore = TrendStationarityScore(seriesOriginal, seriesTrasf2)
     SeasonScore = SeasonStationarityScore(seriesTrasf2)
     Ar1Score= cost - TrendScore - SeasonScore
+
     print("Ar1Score", cost - TrendScore - SeasonScore)
     print("TrendScore =", TrendScore)
     print("SeasonScore =", SeasonScore)
@@ -1064,6 +1114,8 @@ def StationarizeWithPSO_OriginalSliding(series):
     return result2
 
 def StationarizeWithPSO(series):
+    #questa è la PSO che viene usata dalle finestre
+
     #qui invece lo swarm viene inizializzato con le prime 3  particelle pari al max_autocorr_lag, mentre le altre vengono inizializzate ad altri picchi di autocorrelazione
     #questo per fare "spaziare" di più la PSO
     #la yeojohnson viene sempre inizializzata ad 1
@@ -1128,10 +1180,10 @@ def StationarizeWithPSO(series):
 
 
     # StationarityScore= Funzioni.StationarityScore(seriesTrasformed)
-    TrendScore = TrendStationarityScore(seriesOriginal, seriesTrasf2)
+    TrendScore = TrendStationarityScoreADJ(seriesOriginal, seriesTrasf2)
     SeasonScore = SeasonStationarityScore(seriesTrasf2)
     Ar1Score= cost - TrendScore - SeasonScore
-    print("Ar1Score", cost - TrendScore - SeasonScore)
+    print("Ar1Score", Ar1Score)
     print("TrendScore =", TrendScore)
     print("SeasonScore =", SeasonScore)
     # Funzioni.PlotZoomed(seriesOriginal,300,400)
@@ -2407,12 +2459,13 @@ def TestPrediction_AutoArima_Prophet_LSTM_Window90_Pulita(seriesOriginal,seriesT
 
 #syntetic series generator
 
+
 def GenerateSynSeries(length,RangeNoise,orderTrend,SinAmpl,fs,period,i_test,i_ciclo):
     #creiamo la sine wave
 
     linearTrend = list()
     for i in range(0, length):
-        data = i * orderTrend
+        data =i *orderTrend
         linearTrend.append(data)
     linearTrend = Series(linearTrend)
 
@@ -3778,3 +3831,290 @@ def Create_Excel_File(i_test,rmseOriginalArima,maeOriginalArima,autocorrOriginal
     plt.savefig('D:/Universitaa/TESI/tests/immagini/test_'+str(i)+'/my_plot')
     plt.show()
     '''
+
+
+def LSTM_Prediction2_Window90_Ale(training_set, test_set):
+    #modello LSTM di alesasandro
+    from darts import TimeSeries
+    from darts.dataprocessing.transformers import Scaler
+    from darts.models import RNNModel
+
+    train, val = TimeSeries.from_series(training_set), TimeSeries.from_series(test_set,freq='D')
+
+    transformer = Scaler()
+    train_transformed = transformer.fit_transform(train)
+    val_transformed = transformer.transform(val)
+
+    #input_chunk = round(len(train) / 8)
+    input_chunk= 8
+
+    my_model = RNNModel(
+        model='LSTM',
+        input_chunk_length=input_chunk,
+        output_chunk_length=1, model_name='My_LSTM'
+    )
+
+    my_model.fit(train_transformed, val_series=val_transformed, verbose=False)
+    #best_model = RNNModel.load_from_checkpoint(model_name='My_LSTM', best=True)
+    #forecast = best_model.predict(len(val))
+    forecast = my_model.predict(len(val))
+
+    forecast = transformer.inverse_transform(forecast)
+
+
+    forecast = forecast.pd_series()
+
+    return forecast
+
+def TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(seriesOriginal,seriesTrasf1,seriesTrasf2,particle,lamb,counter_photo,train_set,test_set,scaler2,i_test,i_ciclo):
+    #questa versione è diversa semplicemente perchè applica il modello LSTM di alessandro
+
+    #questa è la versione per fare i test con la trasformazione del primo 90% usando le finestre (scomponendo le non stazionarietà e trasformandole), ricollegando le trasformate e usando la serie trasformata così fatta per la predizione
+    # preparo i train e test sets
+    size = len(seriesOriginal)
+    test = len(test_set)
+    train = len(train_set)
+
+    seriesTrainOriginal = train_set
+    seriesTestOriginal = test_set
+
+    seriesTrainTrasf1 = seriesTrasf1
+
+
+    seriesTrainTrasf2 = seriesTrasf2
+    #seriesTestTrasf2 = seriesTrasf2.iloc[train:]
+
+    train_dataOriginal = seriesTrainOriginal
+    test_dataOriginal = seriesTestOriginal
+
+    train_dataTrasf2 = seriesTrainTrasf2
+    #test_dataTrasf2 = seriesTestTrasf2
+
+    # facciamo la predizione con auto ARIMA della serie originale e calcoliamo rmse
+    modelOriginal = pm.auto_arima(train_dataOriginal, error_action='ignore', trace=True, suppress_warnings=True)
+    forecastOriginal = modelOriginal.predict(test_dataOriginal.shape[0])
+
+    seriesPredictedOriginal = Series(forecastOriginal)
+    seriesPredictedOriginal.index = seriesTestOriginal.index
+
+    rmseOriginal = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedOriginal))
+    maeOriginal = mean_absolute_error(seriesTestOriginal, seriesPredictedOriginal)
+    autocorr_residOriginal = Quantif_Autocorr_Residual(seriesPredictedOriginal, seriesTestOriginal)
+
+    # facciamo la predizione con auto ARIMA della serie trasformata e calcoliamo rmse
+    # elimino i primi particle value settati a 0 che mi sballano il training
+    #train_dataTrasf2 = train_dataTrasf2.drop(train_dataTrasf2.index[0:particle])
+
+    modelTrasf2 = pm.auto_arima(seriesTrasf2, error_action='ignore', trace=True, suppress_warnings=True)
+    forecastTrasf2 = modelTrasf2.predict(test_dataOriginal.shape[0])
+
+    seriesPredictedTrasf2 = Series(forecastTrasf2)
+
+    #de-normalizzo la predizione
+    seriesPredictedTrasf2 = Invert_Normalize_Series(seriesPredictedTrasf2,scaler2)
+
+    #plt.title('AutoArima')
+    #seriesPredictedTrasf2.plot(color='violet')
+    #plt.show()
+    # inverto la predizione
+    seriesPredictedInv = InvDiffByParticlePredicted(seriesPredictedTrasf2, seriesTrainTrasf1, particle)
+    seriesPredictedInv = InverseYeojohnson(seriesPredictedInv, seriesPredictedInv, lamb)
+
+    seriesPredictedInv.index = seriesTestOriginal.index
+
+    rmseTrasf2 = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedInv))
+    maeTrasf2 = mean_absolute_error(seriesTestOriginal, seriesPredictedInv)
+    autocorr_residTrasf2 = Quantif_Autocorr_Residual(seriesPredictedInv, seriesTestOriginal)
+
+
+    # plottiamo le predizioni
+    seriesPredictedTrasf2.index = seriesTestOriginal.index
+    #pyplot.title("AutoARIMA prediction series trasformed before inverting")
+    #seriesPredictedTrasf2.plot(color='red')
+    #seriesTestTrasf2.plot()
+    #pyplot.show()
+
+    pyplot.figure()
+    pyplot.subplot(211)
+    train_set.plot(color='blue', label='Original')
+    pyplot.legend()
+    pyplot.title('Last Transformation Applied  Particle={}  lambda={:.2f}'.format(particle,lamb))
+    pyplot.subplot(212)
+    seriesTrasf2.plot(color='green', label='Trasformed')
+    pyplot.legend()
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/ciclo_esterno'+ str(i_ciclo) + '/test_'+str(i_test)+'/Syn_' + str(counter_photo) + '.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    pyplot.figure()
+    pyplot.subplot(311)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedOriginal.plot(color='orange', label='PredictedOriginal')
+    pyplot.legend()
+    pyplot.title("AutoARIMAOrigin  rmse={:.2f}  mae={:.2f}  autocorrRes={:.2f}".format(rmseOriginal, maeOriginal, autocorr_residOriginal))
+    pyplot.subplot(313)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedInv.plot(color='red', label='PredictedTrasf')
+    pyplot.legend()
+    pyplot.title("AutoARIMATrasf rmse={:.2f}   mae={:.2f}  autcorrRes={:.2f}".format(rmseTrasf2,maeTrasf2, autocorr_residTrasf2))
+
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/ciclo_esterno' + str(i_ciclo) + '/test_'+str(i_test)+'/Syn_'+ str(counter_photo) +'.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    # facciamo le predizioni usando prophet
+    # facciamo predizione usando serie originale
+
+    result1 = ProphetPredictSeries_Window90(train_dataOriginal, test_dataOriginal)
+    forecastOriginalProp = result1[0]
+
+    seriesPredictedOriginalProp = Series(forecastOriginalProp)
+    seriesPredictedOriginalProp.index = seriesTestOriginal.index
+
+    rmseOriginalProp = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedOriginalProp))
+    maeOriginalProp = mean_absolute_error(seriesTestOriginal, seriesPredictedOriginalProp)
+    autocorr_residOriginal_Prop = Quantif_Autocorr_Residual(seriesPredictedOriginalProp, seriesTestOriginal)
+    # facciamo la predizione usando la serie trasformata
+    result = ProphetPredictSeries_Window90(seriesTrasf2, test_dataOriginal)
+    forecastTrasf2Prop = result[0]
+
+    seriesPredictedTrasf2Prop = Series(forecastTrasf2Prop.values)
+
+    # de-normalizzo la predizione
+    seriesPredictedTrasf2Prop = Invert_Normalize_Series(seriesPredictedTrasf2Prop, scaler2)
+
+    #plt.title('Prophet')
+    #seriesPredictedTrasf2Prop.plot(color='violet')
+    #plt.show()
+    seriesTrainTrasf1Val = Series(seriesTrainTrasf1.values)
+    # inverto la predizione
+    seriesPredictedInvProp = InvDiffByParticlePredicted(seriesPredictedTrasf2Prop, seriesTrainTrasf1Val,particle)
+    seriesPredictedInvProp = InverseYeojohnson(seriesPredictedInvProp, seriesPredictedInvProp, lamb)
+
+    seriesPredictedInvProp.index = seriesTestOriginal.index
+
+    rmseTrasf2Prop = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedInvProp))
+    maeTrasf2Prop = mean_absolute_error(seriesTestOriginal, seriesPredictedInvProp)
+    autocorr_residTrasf2_Prop = Quantif_Autocorr_Residual(seriesPredictedInvProp, seriesTestOriginal)
+
+
+    # plottiamo le predizioni
+    #seriesPredictedTrasf2Prop.index = seriesTestOriginal.index
+    #pyplot.title("Prophet prediction series trasformed before inverting")
+    #seriesPredictedTrasf2Prop.plot(color='violet')
+    #seriesTestTrasf2.plot()
+    #pyplot.show()
+
+    pyplot.figure()
+    pyplot.subplot(311)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedOriginalProp.plot(color='orange', label='PredictedOriginal')
+    pyplot.legend()
+    pyplot.title("ProphetOrigin rmse={:.2f}  mae={:.2f} autocorrRes={:.2f}  ".format(rmseOriginalProp, maeOriginalProp,autocorr_residOriginal_Prop))
+    pyplot.subplot(313)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedInvProp.plot(color='red', label='PredictedTrasf')
+    pyplot.legend()
+    pyplot.title("ProphetTrasf rmse={:.2f}  mae={:.2f}, autocorrRes={:.2f}".format(rmseTrasf2Prop,maeTrasf2Prop,autocorr_residTrasf2_Prop))
+
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/ciclo_esterno' + str(i_ciclo) + '/test_'+str(i_test)+'/Syn_'+ str(counter_photo) +'.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    # facciamo la predizione con LSTM
+    # iniziamo con la serie originale
+    seriesPredictedOriginalLSTM = LSTM_Prediction2_Window90_Ale(train_dataOriginal, test_dataOriginal)
+    #calcoliamo rmse,mae e quantifichiamo l'autocorrelazione del residuo
+
+
+
+
+    rmseOriginalLSTM = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedOriginalLSTM))
+    maeOriginalLSTM = mean_absolute_error(seriesTestOriginal, seriesPredictedOriginalLSTM)
+    autocorr_residOriginal_LSTM= Quantif_Autocorr_Residual(seriesPredictedOriginalLSTM,seriesTestOriginal)
+
+    # facciamo la predizione usando la serie trasformata
+    seriesPredictedTrasf2LSTM = LSTM_Prediction2_Window90_Ale(seriesTrasf2, test_dataOriginal)
+
+
+
+
+    # de-normalizzo la predizione
+    seriesPredictedTrasf2LSTM = Invert_Normalize_Series(seriesPredictedTrasf2LSTM, scaler2)
+
+    #plt.title('LSTM')
+    #seriesPredictedTrasf2LSTM.plot(color='violet')
+    #plt.show()
+
+    # inverto la predizione
+    seriesPredictedInvLSTM = InvDiffByParticlePredicted(seriesPredictedTrasf2LSTM, seriesTrainTrasf1, particle)
+    seriesPredictedInvLSTM = InverseYeojohnson(seriesPredictedInvLSTM, seriesPredictedInvLSTM, lamb)
+    seriesPredictedInvLSTM.index = seriesTestOriginal.index
+    # calcoliamo rmse,mae e quantifichiamo l'autocorrelazione del residuo
+    rmseTrasf2LSTM = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedInvLSTM))
+    maeTrasf2LSTM = mean_absolute_error(seriesTestOriginal, seriesPredictedInvLSTM)
+    autocorr_residTrasf2_LSTM = Quantif_Autocorr_Residual(seriesPredictedInvLSTM, seriesTestOriginal)
+
+    #plottiamo la predizione di LSTM
+    pyplot.figure()
+    pyplot.subplot(311)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedOriginalLSTM.plot(color='orange', label='PredictedOriginal')
+    pyplot.legend()
+    pyplot.title("LSTMOrigin rmse={:.2f}  mae={:.2f}  autocorrRes={:.2f}".format(rmseOriginalLSTM, maeOriginalLSTM,autocorr_residOriginal_LSTM))
+    pyplot.subplot(313)
+    seriesTestOriginal.plot(color='blue', label='Original')
+    seriesPredictedInvLSTM.plot(color='red', label='PredictedTrasf')
+    pyplot.legend()
+    pyplot.title("LSTMTrasf rmse={:.2f} mae={:.2f}   autocorrRes={:.2f}".format(rmseTrasf2LSTM,maeTrasf2LSTM,autocorr_residTrasf2_LSTM))
+    pyplot.savefig('D:/Universitaa/TESI/tests/immagini/ciclo_esterno'+ str(i_ciclo) + '/test_'+str(i_test)+'/Syn_'+ str(counter_photo) +'.png')
+    counter_photo = counter_photo + 1
+    pyplot.show()
+
+    #scriviamo i valori di rmse,mae,autocorr_res su file
+    fil = open("D:/Universitaa/TESI/tests/immagini/ciclo_esterno" + str(i_ciclo) + "/test_"+str(i_test)+"/info.txt", "a+")
+
+    fil.write('\n\nAuto_Arima_Original :  Rmse =' + str(rmseOriginal) + ' Mae = '+ str(maeOriginal) + ' Autocorr_resid = '+ str(autocorr_residOriginal) + ' \n')
+    fil.write('Prophet_Original :  Rmse =' + str(rmseOriginalProp) + ' Mae = ' + str(maeOriginalProp) + ' Autocorr_resid = ' + str( autocorr_residOriginal_Prop) + ' \n')
+    fil.write('LSTM_Original :  Rmse =' + str(rmseOriginalLSTM) + ' Mae = ' + str(maeOriginalLSTM) + ' Autocorr_resid = ' + str(autocorr_residOriginal_LSTM) + ' \n')
+
+    fil.write('\n\nAuto_Arima_Trasf :  Rmse =' + str(rmseTrasf2) + ' Mae = ' + str(maeTrasf2) + ' Autocorr_resid = ' + str(autocorr_residTrasf2) + ' \n')
+    fil.write('Proohet_Trasf :  Rmse =' + str(rmseTrasf2Prop) + ' Mae = ' + str(maeTrasf2Prop) + ' Autocorr_resid = ' + str(autocorr_residTrasf2_Prop) + ' \n')
+    fil.write('LSTM_Trasf :  Rmse =' + str(rmseTrasf2LSTM) + ' Mae = ' + str(maeTrasf2LSTM) + ' Autocorr_resid = ' + str(autocorr_residTrasf2_LSTM) + ' \n')
+    fil.close()
+
+    Create_Excel_File(i_test, rmseOriginal, maeOriginal, autocorr_residOriginal,rmseOriginalProp, maeOriginalProp,autocorr_residOriginal_Prop,rmseOriginalLSTM, maeOriginalLSTM, autocorr_residOriginal_LSTM, rmseTrasf2,maeTrasf2, autocorr_residTrasf2,  rmseTrasf2Prop, maeTrasf2Prop, autocorr_residTrasf2_Prop, rmseTrasf2LSTM, maeTrasf2LSTM,autocorr_residTrasf2_LSTM,i_ciclo)
+
+
+
+def YJLossScore(seriesTrasformed,seriesOriginal):
+    sTmax= seriesTrasformed.max()
+    sTmin = seriesTrasformed.min()
+    sTRange = sTmax - sTmin
+
+    sOmax = seriesOriginal.max()
+    sOmin = seriesOriginal.min()
+    sORange = sOmax - sOmin
+
+
+
+    score = (sORange - sTRange)/ sORange
+
+    #print("sORange= {}    sTRange= {}   score= {}".format(sORange,sTRange,score))
+
+    return score
+
+
+def FillStockSeries(series):
+    series = TimeSeries.from_series(series, freq='D')
+    series = series.pd_series()
+    series = series.interpolate()
+    return series
+
+
+def NormalizeScore(score,seriesTrasf):
+    max= seriesTrasf.max()
+    min= seriesTrasf.min()
+
+    score = (score - min) / (max - min)
+    return score

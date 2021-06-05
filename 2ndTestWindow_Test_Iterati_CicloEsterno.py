@@ -10,70 +10,94 @@ from numpy import random
 from scipy.stats import yeojohnson
 import os
 import yfinance as yf
+from darts import TimeSeries
+import shutil
+
+
+
+
 
 oracle = yf.download("ORCL", start="2016-01-01", end="2021-01-01")
 oracle = oracle.loc[:, "Close"]
+oracle = Funzioni.FillStockSeries(oracle)
 
-IBM = yf.download("IBM", start="2016-01-01", end="2019-01-01")
-IBM = IBM.loc[:,"Close"]
 
 mcDonald = yf.download("MCD", start="2016-01-01", end="2019-01-01")
 mcDonald = mcDonald.loc[:,"Close"]
+mcDonald = Funzioni.FillStockSeries(mcDonald)
 
-disney= yf.download("DIS", start="2016-01-01", end="2019-01-01")
+disney= yf.download("DIS", start="1990-01-01", end="1997-01-01")
 disney = disney.loc[:,"Close"]
+disney = Funzioni.FillStockSeries(disney)
+
+amazon = yf.download("AMZN",start="2013-01-01", end="2018-01-01")
+amazon = amazon.loc[:,"Close"]
+amazon = Funzioni.FillStockSeries(amazon)
+
+google = yf.download("GOOG",start="2004-01-01",end= "2021-01-01")
+google = google.loc[:,"Close"]
+google = Funzioni.FillStockSeries(google)
 
 ciclo_esterno=5
 i_ciclo=0
 start_ciclo=4
 serie0 = read_csv('Datasets/Manufacturer value of shipment.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 serie1 = read_csv('Datasets/mon_drug_sales.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
-serie2 = read_csv('Datasets/AMZN_2006-01-01_to_2018-01-01.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
-serie3 = read_csv('Correlation Datasets/GOOG (1).csv', header=0, index_col=0, parse_dates=True, squeeze=True)
+serie2 = amazon
+serie3 = google
 serie4 = 70
-serie5 = 100
-serie6 = read_csv('Datasets/covidNuoviPositivi.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
+serie5 = disney
+serie6 = read_csv('Datasets/Electric_Production.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
+#serie6 = read_csv('Datasets/Covid19-italy.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
+
+
 serie7 = read_csv('Datasets/DailyDelhiClimateTrain.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 serie8 = read_csv('Datasets/monthly-beer-production-in-austr.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 serie9 = read_csv('Datasets/daily-total-female.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 serie10 = oracle
 serie11 = disney
 serie12 = mcDonald
-serie13 = IBM
+dir_path = 'D:/Universitaa/Anaconda/Tesi_Codice/.darts'
 
 for i_ciclo in range(start_ciclo,ciclo_esterno):
-    counter_test = 10
+    counter_test = 2
     i_test = 1
     start=1
     Funzioni.alarm()
     for i_test in range(start, counter_test + 1):
+        dir_path = 'D:/Universitaa/Anaconda/Tesi_Codice/.darts'
+        try:
+            shutil.rmtree(dir_path)
+        except OSError as e:
+            print("Error: %s : %s" % (dir_path, e.strerror))
+
         global counter_photo
         counter_photo = 0
         counter_photo2 = 100
 
         seriesRead = read_csv('Datasets/covidNuoviPositivi.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 
-        period1 = 21
-        period2 = 9
-        period3 = 27
-        period4 = 14
+        period1 = 0
+        period2 = 0
+        period3 = 0
+        period4 = 0
         period5 = 0
 
-        trend1 = -2
+        trend1 = 0
         trend2 = 0
-        trend3 = 1
+        trend3 = 0
         trend4 = 0
         trend5 = 0
 
 
         random_noise = 50
-        lenght = 500
+        lenght = 1500
 
         if(i_ciclo==4):
             random_noise=50
 
-        if(i_ciclo==5):
-            random_noise=50
+       # if(i_ciclo==5):
+          #  random_noise=50
 
         newpath = r'D:/Universitaa/TESI/tests/immagini/ciclo_esterno' + str(i_ciclo) + '/test_' + str(i_test)
         os.makedirs(newpath)
@@ -88,15 +112,15 @@ for i_ciclo in range(start_ciclo,ciclo_esterno):
 
         random.seed()
         synSeries1 = Funzioni.GenerateSynSeries(lenght, random_noise, trend1, 100, 1, period1, i_test,i_ciclo)
-        synSeries2 = Funzioni.GenerateSynSeries(lenght, random_noise, trend2, 100, 1, period2, i_test,i_ciclo)
-        synSeries3 = Funzioni.GenerateSynSeries(lenght, random_noise, trend3, 100, 1, period3, i_test,i_ciclo)
-        synSeries4 = Funzioni.GenerateSynSeries(lenght, random_noise, trend4, 100, 1, period4, i_test,i_ciclo)
+        #synSeries2 = Funzioni.GenerateSynSeries(lenght, random_noise, trend2, 100, 1, period2, i_test,i_ciclo)
+        #synSeries3 = Funzioni.GenerateSynSeries(lenght, random_noise, trend3, 100, 1, period3, i_test,i_ciclo)
+        #synSeries4 = Funzioni.GenerateSynSeries(lenght, random_noise, trend4, 100, 1, period4, i_test,i_ciclo)
         # synSeries5 = Funzioni.GenerateSynSeries(lenght,50,trend5,100,1,period5)
 
         synSeriesConc = synSeries1
-        synSeriesConc = Funzioni.concatSeries(synSeriesConc, synSeries2)
-        synSeriesConc = Funzioni.concatSeries(synSeriesConc, synSeries3)
-        synSeriesConc = Funzioni.concatSeries(synSeriesConc, synSeries4)
+        #synSeriesConc = Funzioni.concatSeries(synSeriesConc, synSeries2)
+        #synSeriesConc = Funzioni.concatSeries(synSeriesConc, synSeries3)
+        #synSeriesConc = Funzioni.concatSeries(synSeriesConc, synSeries4)
         # synSeriesConc = Funzioni.concatSeries(synSeriesConc,synSeries5)
 
         dti1 = pd.date_range("2018-01-01", periods=len(synSeriesConc), freq="D")
@@ -123,7 +147,7 @@ for i_ciclo in range(start_ciclo,ciclo_esterno):
 
         if(i_ciclo==6):
             series=serie6
-            period1= 'covidNuoviPositivi'
+            period1= 'ElectricProduction'
 
         if(i_ciclo==7):
             series=serie7
@@ -149,9 +173,11 @@ for i_ciclo in range(start_ciclo,ciclo_esterno):
             series=serie12
             period1='McDonald'
 
-        if(i_ciclo==13):
-            series=serie13
-            period1='IBM'
+        if(i_ciclo==5):
+            series=serie5
+            period1='Disney'
+
+
 
 
 
@@ -245,7 +271,7 @@ for i_ciclo in range(start_ciclo,ciclo_esterno):
 
         # ora abbiamo la serie trasformata, che è stata trasformata prima dividendo in pezzi, poi traformando ogni singolo pezzo e poi rimettendole insieme
 
-        Funzioni.TestPrediction_AutoArima_Prophet_LSTM_Window90(series, seriesTrasf1Recostructed,
+        Funzioni.TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(series, seriesTrasf1Recostructed,
                                                                 seriesTrasf2Recostructed,
                                                                 particle, lamb, counter_photo, train_set, test_set,
                                                                 scaler2, i_test,i_ciclo)
