@@ -33,6 +33,8 @@ import winsound
 import xlsxwriter
 from datetime import datetime
 from darts import TimeSeries
+from statsmodels.tsa.arima_process import arma_generate_sample
+import os
 
 
 
@@ -43,6 +45,73 @@ counter_photo=0
 def PrintSeriesTrasform(series,p0,p1):
     "ripete le trasformazioni fatte dallo swarm una volta che ha trovato i parametri migliori"
     "poi plotta la serie originale e trasformata e fa un check ricalcolando la bianco loss"
+    seriesOriginal=series
+    if(CheckStationarity(series)==False):
+        print("la serie originale non è stazionaria")
+
+    #qui che devo solo stampare, uso la versione shiftata della diff
+
+
+        #p0=1
+        #p1=0
+        seriesTrasf1 = YeojohnsonTrasform(series, p0)
+        seriesTrasf2 = DifferencingByParticleValue(seriesTrasf1,round(p1))
+
+        seriesTrasf1.index=seriesOriginal.index
+        seriesTrasf2.index=seriesOriginal.index
+
+
+
+        #pyplot.title('Serie originale')
+        #seriesOriginal.plot()
+        #pyplot.show()
+
+        #pyplot.title('Serie Trasformata')
+        #series.plot(color='red')
+        #pyplot.show()
+
+        #pyplot.title('Serie originale (blu) vs trasformata')
+        #seriesOriginal.plot()
+        #series.plot(color='red')
+        #pyplot.show()
+
+
+        #pyplot.figure()
+        #pyplot.subplot(211)
+        #seriesOriginal.plot()
+        #pyplot.subplot(212)
+        #series.plot(color='red')
+        #pyplot.show()
+
+
+
+        #if(CheckStationarity(series)==True):
+           # print("la serie trasformata è stazionaria")
+       # else:
+           #print("la serie trasformata non è stazionaria")
+
+    else:
+        print("la serie originale è stazionaria, nessuna trasformazione è stata effettuata")
+        seriesTrasf2=seriesOriginal
+        seriesTrasf1=seriesOriginal
+        #quando la serie è stazionaria, non devo applicare nessuna trasformazione
+        #quindi forzo il risultato della pso a Diff=0 e Yeo=1, in modo che non applichi trasformazioni
+        p0=1
+        p1=0
+
+
+        #pyplot.title('Serie originale')
+        #seriesOriginal.plot()
+        #pyplot.show()
+
+    result=[seriesTrasf2,seriesTrasf1,p0,p1]
+    return result
+
+def PrintSeriesTrasformWindow(series,p0,p1):
+    "ripete le trasformazioni fatte dallo swarm una volta che ha trovato i parametri migliori"
+    "poi plotta la serie originale e trasformata e fa un check ricalcolando la bianco loss"
+
+    #si differenzia dall'altra perchè è usata dalle finestre e usa il check stationarity vecchio
     seriesOriginal=series
     if(CheckStationarity(series)==False):
         print("la serie originale non è stazionaria")
@@ -126,7 +195,7 @@ def PlotZoomed(series,start,end):
 
 #Checks
 
-def CheckStationarity(series):
+def CheckStationarityVecchio(series):
     #la funzione ritorna True se la serie è stazionaria, false altrimenti
     X=series.values
     result=adfuller(X)
@@ -171,12 +240,57 @@ def CheckSeasonality3(series):
     # e la soglia 0.3 imposta da me per discriminare outliers
 
     num_peaks=FindAutocorrelationPeaksSeason(series)
-    if(len(num_peaks)>=1):
+    #se ci sono più di un picco di autocorrelazione, significa che c'è un periodo
+    #tranne nel caso in cui il primo picco = 1, perchè in quel caso è un periodo fittizzio, come avviene per il segnale generato da un processo arma
+    if(len(num_peaks)>=1 and num_peaks[0]!=1):
         thereIsSeason=True
     else:
         thereIsSeason=False
 
     return thereIsSeason
+
+def CheckStationarity(series):
+    #questo è il check consigliato da alessandro, piu robusto del precedente adfuller, controlla se la serie è trend stazionaria
+    #a cui aggiungo sempre anche il check sul periodo
+    class StationarityTests:
+        def __init__(self, significance=.05):
+            self.SignificanceLevel = significance
+            self.pValue = None
+            self.isStationary = None
+
+        def ADF_Stationarity_Test(self, timeseries, printResults=True):
+            # Dickey-Fuller test:
+            adfTest = adfuller(timeseries, autolag='AIC')
+
+            self.pValue = adfTest[1]
+
+            if (self.pValue < self.SignificanceLevel):
+                self.isStationary = True
+            else:
+                self.isStationary = False
+
+            if printResults:
+                dfResults = pd.Series(adfTest[0:4],
+                                      index=['ADF Test Statistic', 'P-Value', '# Lags Used', '# Observations Used'])
+                # Add Critical Values
+                for key, value in adfTest[4].items():
+                    dfResults['Critical Value (%s)' % key] = value
+                print('Augmented Dickey-Fuller Test Results:')
+                print(dfResults)
+
+    sTest = StationarityTests()
+    sTest.ADF_Stationarity_Test(series, printResults=False)
+
+    #vediamo se la serie è anche season stazionaria
+    #Check sesasonality 3 restituisce TRUE se è presente un periodo , false altrimenti
+    thereIsSeasonality = CheckSeasonality3(series)
+
+    #se la serie è trend stazionaria e non ci sono periodi, allora è stazionaria
+    if(sTest.isStationary==True and thereIsSeasonality==False):
+        is_stationary=True
+    else:
+        is_stationary=False
+    return is_stationary
 
 
 
@@ -1023,10 +1137,9 @@ def StationarizeWithPSO_Original(series,i_test,i_ciclo):
     # Funzioni.PlotZoomed(seriesOriginal,300,400)
 
     fil=open("D:/Universitaa/TESI/tests/immagini/ciclo_esterno" + str(i_ciclo) + "/test_"+str(i_test)+"/info.txt","a+")
-    fil.write('\n\n')
     print(f"Valore minimo: {cost}, Yeojohnson lambda={pos[0]}, DiffByParticle={round(pos[1])}")
-    fil.write('Valore Minimo = '+str(cost)+' Yeojohnson lambda = '+ str(pos[0]) + ' DiffByParticle = '+str(round(pos[1]))+'\n')
-    fil.write('Ar1Score = ' + str(Ar1Score) + ' TrendScore = ' + str(TrendScore)+ ' SeasonScore = '+ str(SeasonScore) +'\n')
+    fil.write('\nValore Minimo = '+str(cost)+' Yeojohnson lambda = '+ str(pos[0]) + ' DiffByParticle = '+str(round(pos[1]))+'\n')
+    fil.write('Ar1Score = ' + str(Ar1Score) + ' TrendScore = ' + str(TrendScore)+ ' SeasonScore = '+ str(SeasonScore) +'\n\n')
     fil.close()
 
    #result2=[seriesTrasf2,seriesTrasf1,round(pos[1]),pos[0],TrendScore,SeasonScore,Ar1Score,cost]
@@ -1168,7 +1281,7 @@ def StationarizeWithPSO(series):
 
 
     # rileggo la serie per plottarla con PrintSeriesTrasform
-    result = PrintSeriesTrasform(series, pos[0], pos[1])
+    result = PrintSeriesTrasformWindow(series, pos[0], pos[1])
     seriesTrasf2 = result[0]
     seriesTrasf1= result[1]
     pos[0] = result[2]
@@ -1332,6 +1445,9 @@ def ProphetPredictSeries_Window90(train_set,test_set):
     future = DataFrame(dfTest["ds"])
 
     m = Prophet()
+    plt.title('TrainSet prophet')
+    train_set.plot(color='yellow')
+    plt.show()
     m.fit(dfTrain)
 
     forecast = m.predict(future)
@@ -2472,10 +2588,10 @@ def GenerateSynSeries(length,RangeNoise,orderTrend,SinAmpl,fs,period,i_test,i_ci
     #random.seed()
     x = [random.randint(-RangeNoise, RangeNoise) for i in range(0, length)]
     x = Series(x)
-    fil = open("D:/Universitaa/TESI/tests/immagini/ciclo_esterno" + str(i_ciclo) + "/test_"+str(i_test)+"/info.txt", "a+")
-    rand_values=[(x.head(10).values)]
-    fil.write("First 10 Random values = " + str(x.head(10).values) + "\n" )
-    fil.close()
+    #fil = open("D:/Universitaa/TESI/tests/immagini/ciclo_esterno" + str(i_ciclo) + "/test_"+str(i_test)+"/info.txt", "a+")
+    #rand_values=[(x.head(10).values)]
+    #fil.write("First 10 Random values = " + str(x.head(10).values) + "\n" )
+    #fil.close()
 
     if (period!=0):
         f = 1 / period
@@ -2487,7 +2603,8 @@ def GenerateSynSeries(length,RangeNoise,orderTrend,SinAmpl,fs,period,i_test,i_ci
 
         synSeries1 = list()
         for i in range(0, length):
-            data = x[i] + sineWave[i] + linearTrend[i]
+            #data = x[i] + sineWave[i] + linearTrend[i]
+            data= sineWave[i] + linearTrend[i]
             synSeries1.append(data)
 
         synSeries1 = Series(synSeries1)
@@ -2496,12 +2613,157 @@ def GenerateSynSeries(length,RangeNoise,orderTrend,SinAmpl,fs,period,i_test,i_ci
     else:
         synSeries1 = list()
         for i in range(0, length):
-            data = x[i]  + linearTrend[i]
+            #data = x[i]  + linearTrend[i]
+            data = linearTrend[i]
             synSeries1.append(data)
 
         synSeries1 = Series(synSeries1)
 
     return synSeries1
+
+def GenerateSynSeriesNonRandom(length,base,orderTrend,SinAmpl,fs,period,i_test,i_ciclo):
+    #creiamo la sine wave
+
+    linearTrend = list()
+    for i in range(0, length):
+        data =i *orderTrend
+        linearTrend.append(data)
+    linearTrend = Series(linearTrend)
+
+
+
+    if (period!=0):
+        f = 1 / period
+        t = length
+        samples = np.linspace(0, t, int(fs * t), endpoint=False)
+        signal = np.sin(2 * np.pi * f * samples) * SinAmpl
+        sineWave = Series(signal)
+
+
+
+
+
+        synSeries1 = list()
+        for i in range(0, length):
+            data = sineWave[i] + linearTrend[i] + base[i] +200
+            synSeries1.append(data)
+
+        synSeries1 = Series(synSeries1)
+
+
+    else:
+        synSeries1 = list()
+        for i in range(0, length):
+            data =linearTrend[i] + base[i] + 100
+            synSeries1.append(data)
+
+        synSeries1 = Series(synSeries1)
+
+    return synSeries1
+
+def GenerateBase(length):
+    # creiamo la base della serie che porta informazioni
+    # tale base  sarà composta da del rumore
+    # random.seed()
+    x = [random.randint(-50,50) for i in range(0, length)]
+    x = Series(x)
+    # fil = open("D:/Universitaa/TESI/tests/immagini/ciclo_esterno" + str(i_ciclo) + "/test_"+str(i_test)+"/info.txt", "a+")
+    # rand_values=[(x.head(10).values)]
+    # fil.write("First 10 Random values = " + str(x.head(10).values) + "\n" )
+    # fil.close()
+
+    fs=1
+    f2 = 1 / (1500)
+    t = length
+    samples = np.linspace(0, t, int(fs * t), endpoint=False)
+    signal2 = np.sin(2 * np.pi * f2 * samples) * (30)
+    sineWave2 = Series(signal2)
+
+    base = list()
+    for i in range(0, length):
+        data = sineWave2[i] + x[i]
+        base.append(data)
+    base = Series(base)
+
+    plt.title("Base della serie con le informazioni")
+    base.plot(color='green')
+
+    # divido la base in test e train giusto per plottarla di colori diversi
+    train_lenght = int(length * 0.9)
+    base_test = base[train_lenght:]
+    base_test.plot(color='red')
+    plt.show()
+
+    return [base,base_test]
+
+def GenerateSynSeriesCorrelation(length,base,orderTrend,SinAmpl,fs,period,i_test,i_ciclo):
+    #creiamo la sine wave
+
+    linearTrend = list()
+    for i in range(0, length):
+        data =i *orderTrend
+        linearTrend.append(data)
+    linearTrend = Series(linearTrend)
+
+    if (period!=0):
+        f = 1 / period
+        t = length
+        samples = np.linspace(0, t, int(fs * t), endpoint=False)
+        signal = np.sin(2 * np.pi * f * samples) * SinAmpl
+
+        sineWave = Series(signal)
+
+        synSeries1 = list()
+        for i in range(0, length):
+            data = base[i] + sineWave[i] + linearTrend[i]
+            synSeries1.append(data)
+
+        synSeries1 = Series(synSeries1)
+
+
+
+
+    else:
+        synSeries1 = list()
+        for i in range(0, length):
+            data = base[i]  + linearTrend[i]
+            synSeries1.append(data)
+
+        synSeries1 = Series(synSeries1)
+
+
+    dti1 = pd.date_range("2018-01-01", periods=len(synSeries1), freq="D")
+    synSeries1.index= dti1
+
+    return synSeries1
+
+def GenerateArmaSignal(length):
+    # Set coefficients
+    ar_coefs = [0.5, 0.5, 0.2]
+    ma_coefs = [0.5, -0.3, 0.2]
+
+    # Generate data
+    y = arma_generate_sample(ar_coefs, ma_coefs, nsample=length, scale=1)
+    y = y + 200
+
+    dti = pd.date_range("2018-01-01", periods=length, freq="D")
+    s = pd.Series(y, index=dti, name="Value")
+    s = s.apply(lambda x: round(x, 3))
+
+    s.plot(color='orange')
+    plt.show()
+
+    return s
+
+def AddArmaSignal_toSeries(armaSignal,series):
+    s = list()
+    for i in range(len(series)):
+        data=series[i]+armaSignal[i]
+        s.append(data)
+    s=Series(s)
+    s.index=series.index
+
+    return s
 
 def concatSeries(series1,series2):
 
@@ -3207,6 +3469,7 @@ def Stationarize_PSO_Window4(series,counter_photo,period1,period2,period3,period
         plt.show()
 
 
+
         #questo if mi serve per aggiornare il max_autocorr_lag solo nel caso in cui il max_lag visto nella finestra è cambiato in modo significativo
         if(lagBatch!=0 and (lagBatch<max_autocorrelation_lag-2 or lagBatch>max_autocorrelation_lag+2)):
            max_autocorrelation_lag=lagBatch
@@ -3841,6 +4104,10 @@ def LSTM_Prediction2_Window90_Ale(training_set, test_set):
 
     train, val = TimeSeries.from_series(training_set), TimeSeries.from_series(test_set,freq='D')
 
+    plt.title('TrainSet LSTM')
+    train.plot(color='yellow')
+    plt.show()
+
     transformer = Scaler()
     train_transformed = transformer.fit_transform(train)
     val_transformed = transformer.transform(val)
@@ -3853,6 +4120,9 @@ def LSTM_Prediction2_Window90_Ale(training_set, test_set):
         input_chunk_length=input_chunk,
         output_chunk_length=1, model_name='My_LSTM'
     )
+    plt.title('TrainSetTrasformed LSTM')
+    train_transformed.plot(color='yellow')
+    plt.show()
 
     my_model.fit(train_transformed, val_series=val_transformed, verbose=False)
     #best_model = RNNModel.load_from_checkpoint(model_name='My_LSTM', best=True)
@@ -3866,7 +4136,7 @@ def LSTM_Prediction2_Window90_Ale(training_set, test_set):
 
     return forecast
 
-def TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(seriesOriginal,seriesTrasf1,seriesTrasf2,particle,lamb,counter_photo,train_set,test_set,scaler2,i_test,i_ciclo):
+def TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(seriesOriginal,seriesTrasf1,seriesTrasf2,particle,lamb,counter_photo,train_set,test_set,scaler2,i_test,i_ciclo,workbook,worksheet,list_diff,list_lamb):
     #questa versione è diversa semplicemente perchè applica il modello LSTM di alessandro
 
     #questa è la versione per fare i test con la trasformazione del primo 90% usando le finestre (scomponendo le non stazionarietà e trasformandole), ricollegando le trasformate e usando la serie trasformata così fatta per la predizione
@@ -3891,6 +4161,7 @@ def TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(seriesOriginal,seriesTras
     #test_dataTrasf2 = seriesTestTrasf2
 
     # facciamo la predizione con auto ARIMA della serie originale e calcoliamo rmse
+
     modelOriginal = pm.auto_arima(train_dataOriginal, error_action='ignore', trace=True, suppress_warnings=True)
     forecastOriginal = modelOriginal.predict(test_dataOriginal.shape[0])
 
@@ -3904,7 +4175,9 @@ def TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(seriesOriginal,seriesTras
     # facciamo la predizione con auto ARIMA della serie trasformata e calcoliamo rmse
     # elimino i primi particle value settati a 0 che mi sballano il training
     #train_dataTrasf2 = train_dataTrasf2.drop(train_dataTrasf2.index[0:particle])
-
+    #plt.title('TrainSet autoarima')
+    #seriesTrasf2.plot(color='yellow')
+    #plt.show()
     modelTrasf2 = pm.auto_arima(seriesTrasf2, error_action='ignore', trace=True, suppress_warnings=True)
     forecastTrasf2 = modelTrasf2.predict(test_dataOriginal.shape[0])
 
@@ -3929,8 +4202,10 @@ def TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(seriesOriginal,seriesTras
 
     # plottiamo le predizioni
     seriesPredictedTrasf2.index = seriesTestOriginal.index
-    #pyplot.title("AutoARIMA prediction series trasformed before inverting")
-    #seriesPredictedTrasf2.plot(color='red')
+    pyplot.title("AutoARIMA prediction series trasformed before inverting")
+    #seriesPredictedTrasf2.plot(color='violet')
+    #base.index = seriesPredictedTrasf2.index
+    #base.plot(color='orange')
     #seriesTestTrasf2.plot()
     #pyplot.show()
 
@@ -3998,11 +4273,12 @@ def TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(seriesOriginal,seriesTras
     autocorr_residTrasf2_Prop = Quantif_Autocorr_Residual(seriesPredictedInvProp, seriesTestOriginal)
 
 
-    # plottiamo le predizioni
-    #seriesPredictedTrasf2Prop.index = seriesTestOriginal.index
+    #plottiamo le predizioni
+    seriesPredictedTrasf2Prop.index = seriesTestOriginal.index
     #pyplot.title("Prophet prediction series trasformed before inverting")
     #seriesPredictedTrasf2Prop.plot(color='violet')
     #seriesTestTrasf2.plot()
+    #base.plot(color='orange')
     #pyplot.show()
 
     pyplot.figure()
@@ -4042,8 +4318,9 @@ def TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(seriesOriginal,seriesTras
     # de-normalizzo la predizione
     seriesPredictedTrasf2LSTM = Invert_Normalize_Series(seriesPredictedTrasf2LSTM, scaler2)
 
-    #plt.title('LSTM')
+    #plt.title('LSTM, before inverting')
     #seriesPredictedTrasf2LSTM.plot(color='violet')
+    #base.plot(color='orange')
     #plt.show()
 
     # inverto la predizione
@@ -4085,6 +4362,7 @@ def TestPrediction_AutoArima_Prophet_LSTM_Window90_Ale(seriesOriginal,seriesTras
 
     Create_Excel_File(i_test, rmseOriginal, maeOriginal, autocorr_residOriginal,rmseOriginalProp, maeOriginalProp,autocorr_residOriginal_Prop,rmseOriginalLSTM, maeOriginalLSTM, autocorr_residOriginal_LSTM, rmseTrasf2,maeTrasf2, autocorr_residTrasf2,  rmseTrasf2Prop, maeTrasf2Prop, autocorr_residTrasf2_Prop, rmseTrasf2LSTM, maeTrasf2LSTM,autocorr_residTrasf2_LSTM,i_ciclo)
 
+    WriteTabellaRiassuntiva(workbook,worksheet,i_test,rmseOriginal, maeOriginal, autocorr_residOriginal,rmseOriginalProp, maeOriginalProp,autocorr_residOriginal_Prop,rmseOriginalLSTM, maeOriginalLSTM, autocorr_residOriginal_LSTM, rmseTrasf2,maeTrasf2, autocorr_residTrasf2,  rmseTrasf2Prop, maeTrasf2Prop, autocorr_residTrasf2_Prop, rmseTrasf2LSTM, maeTrasf2LSTM,autocorr_residTrasf2_LSTM,list_diff,list_lamb)
 
 
 def YJLossScore(seriesTrasformed,seriesOriginal):
@@ -4118,3 +4396,205 @@ def NormalizeScore(score,seriesTrasf):
 
     score = (score - min) / (max - min)
     return score
+
+
+
+def Create_Nan_Series(series):
+    #crea una serie di NaN seguendo la serie che gli viene data in input
+    seriesNan=list()
+
+    for i in range(0, len(series)):
+        seriesNan.append(np.nan)
+
+    seriesNan = Series(seriesNan)
+    seriesNan.index = series.index
+
+    return seriesNan
+
+
+
+def SeparateNonStat_Stationarize_ConcatenateTrasf(series, counter_photo, period1, period2, period3,period4, i_test,i_ciclo):
+    #questa funzione prende in input una serie con diverse non stazionarietà
+    #scompone la serie seguendo le diverse non stazioanrietà
+    #rende stazionari i vari segmenti estratti trasformandoli
+    #ricongiunge i segmenti trasformati
+
+    #restituisce in output la serie trasformata 1 e 2  ricongiunta e l'ultima lamb e diff applicata
+
+    # costruiamo le nan series per ricongiungere le serie estratte trasformate
+    seriesRecostructed = Create_Nan_Series(series)
+    seriesTrasf1Recostructed = Create_Nan_Series(series)
+    seriesTrasf2Recostructed = Create_Nan_Series(series)
+
+    # vado a estrarre le non stazionarità delle serie
+    seriesExtracted = Stationarize_PSO_Window4(series, counter_photo, period1, period2, period3,period4, i_test,i_ciclo)
+
+
+    # vado a trasformare una alla volta le non stazionarietà
+
+    for ser in seriesExtracted:
+        result = StationarizeWithPSO_Original(ser, i_test, i_ciclo)
+        seriesTrasf1 = result[1]
+        seriesTrasf2 = result[0]
+        particle = result[2]
+        lamb = result[3]
+
+        # normalizziamo  serTrasf2
+        seriesTrasf2, scaler2 = Normalize_Series(seriesTrasf2)
+
+        # andiamo a ricollegare i "pezzi" trasformati 1
+        initT1 = seriesTrasf1.index[0]
+        finT1 = seriesTrasf1.index[len(seriesTrasf1) - 1]
+        seriesTrasf1Recostructed[initT1:finT1] = seriesTrasf1[initT1:finT1]
+
+        # andiamo a ricollegare i "pezzi" trasformati 2
+        initT2 = seriesTrasf2.index[0]
+        finT2 = seriesTrasf2.index[len(seriesTrasf2) - 1]
+        seriesTrasf2Recostructed[initT2:finT2] = seriesTrasf2[initT2:finT2]
+
+    # interpoliamo le due ricostruzioni per riempire i valori mancanti
+    seriesTrasf1Recostructed = seriesTrasf1Recostructed.interpolate()
+    seriesTrasf2Recostructed = seriesTrasf2Recostructed.interpolate()
+
+    result = [seriesTrasf2Recostructed, seriesTrasf1Recostructed, particle, lamb]
+
+    return result
+
+
+def CreateTabellaRiassuntiva(i_ciclo,testo):
+    os.makedirs(r'D:/Universitaa/TESI/tests/immagini/ciclo_esterno' + str(i_ciclo))
+    workbook = xlsxwriter.Workbook(
+        'D:/Universitaa/TESI/tests/immagini/ciclo_esterno' + str(i_ciclo) + '/tabella_riassuntiva.xlsx')
+    worksheet = workbook.add_worksheet()
+    worksheet.write('A1', str(testo))
+    worksheet.write('C1', 'AARmse')
+    worksheet.write('D1', 'AAMae')
+    worksheet.write('E1', 'AAAutocorr')
+    worksheet.write('F1', 'PRmse')
+    worksheet.write('G1', 'PMae')
+    worksheet.write('H1', 'PAutocorr')
+    worksheet.write('I1', 'LRmse')
+    worksheet.write('J1', 'LMae')
+    worksheet.write('K1', 'Lauto')
+    worksheet.write('L1', 'TAARmse')
+    worksheet.write('M1', 'TAAMae')
+    worksheet.write('N1', 'TAAAutocor')
+    worksheet.write('O1', 'TPRmse')
+    worksheet.write('P1', 'TPMae')
+    worksheet.write('Q1', 'TPAutocorr')
+    worksheet.write('R1', 'TLRmse')
+    worksheet.write('S1', 'TLMae')
+    worksheet.write('T1', 'TLAutocorr')
+    worksheet.write('U1', 'Diff1')
+    worksheet.write('V1', 'YJ1')
+    worksheet.write('W1', 'Diff2')
+    worksheet.write('X1', 'YJ2')
+    worksheet.write('Y1', 'Diff3')
+    worksheet.write('Z1', 'YJ3')
+    worksheet.write('AA1', 'Diff4')
+    worksheet.write('AB1', 'YJ4')
+
+
+    worksheet.write('B2', 'Media')
+    worksheet.write('C2', '=MEDIA(C4:C14)')
+    worksheet.write('D2', '=MEDIA(D4:D14)')
+    worksheet.write('E2', '=MEDIA(E4:E14)')
+    worksheet.write('F2', '=MEDIA(F4:F14)')
+    worksheet.write('G2', '=MEDIA(G4:G14)')
+    worksheet.write('H2', '=MEDIA(H4:H14)')
+    worksheet.write('I2', '=MEDIA(I4:I14)')
+    worksheet.write('J2', '=MEDIA(J4:J14)')
+    worksheet.write('K2', '=MEDIA(K4:K14)')
+    worksheet.write('L2', '=MEDIA(L4:L14)')
+    worksheet.write('M2', '=MEDIA(M4:M14)')
+    worksheet.write('N2', '=MEDIA(N4:N14)')
+    worksheet.write('O2', '=MEDIA(O4:O14)')
+    worksheet.write('P2', '=MEDIA(P4:P14)')
+    worksheet.write('Q2', '=MEDIA(Q4:Q14)')
+    worksheet.write('R2', '=MEDIA(R4:R14)')
+    worksheet.write('S2', '=MEDIA(S4:S14)')
+    worksheet.write('T2', '=MEDIA(T4:T14)')
+    worksheet.write('U2', '=MEDIA(U4:U14)')
+    worksheet.write('V2', '=MEDIA(V4:V14)')
+    worksheet.write('W2', '=MEDIA(W4:W14)')
+    worksheet.write('X2', '=MEDIA(X4:X14)')
+    worksheet.write('Y2', '=MEDIA(Y4:Y14)')
+    worksheet.write('Z2', '=MEDIA(Z4:Z14)')
+    worksheet.write('AA2','=MEDIA(AA4:AA14)')
+    worksheet.write('AB2', '=MEDIA(AB4:AB14)')
+
+
+    worksheet.write('B3', 'Dev std')
+    worksheet.write('C3', '=DEV.ST.C(C4:C14)')
+    worksheet.write('D3', '=DEV.ST.C(D4:D14)')
+    worksheet.write('E3', '=DEV.ST.C(E4:E14)')
+    worksheet.write('F3', '=DEV.ST.C(F4:F14)')
+    worksheet.write('G3', '=DEV.ST.C(G4:G14)')
+    worksheet.write('H3', '=DEV.ST.C(H4:H14)')
+    worksheet.write('I3', '=DEV.ST.C(I4:I14)')
+    worksheet.write('J3', '=DEV.ST.C(J4:J14)')
+    worksheet.write('K3', '=DEV.ST.C(K4:K14)')
+    worksheet.write('L3', '=DEV.ST.C(L4:L14)')
+    worksheet.write('M3', '=DEV.ST.C(M4:M14)')
+    worksheet.write('N3', '=DEV.ST.C(N4:N14)')
+    worksheet.write('O3', '=DEV.ST.C(O4:O14)')
+    worksheet.write('P3', '=DEV.ST.C(P4:P14)')
+    worksheet.write('Q3', '=DEV.ST.C(Q4:Q14)')
+    worksheet.write('R3', '=DEV.ST.C(R4:R14)')
+    worksheet.write('S3', '=DEV.ST.C(S4:S14)')
+    worksheet.write('T3', '=DEV.ST.C(T4:T14)')
+    worksheet.write('U3', '=DEV.ST.C(U4:U14)')
+    worksheet.write('V3', '=DEV.ST.C(V4:V14)')
+    worksheet.write('W3', '=DEV.ST.C(W4:W14)')
+    worksheet.write('X3', '=DEV.ST.C(X4:X14)')
+    worksheet.write('Y3', '=DEV.ST.C(Y4:Y14)')
+    worksheet.write('Z3', '=DEV.ST.C(Z4:Z14)')
+    worksheet.write('AA3','=DEV.ST.C(AA4:AA14)')
+    worksheet.write('AB3', '=DEV.ST.C(AB4:AB14)')
+
+    return [workbook,worksheet]
+
+def WriteTabellaRiassuntiva(workbook,worksheet,i_test,rmseOriginal, maeOriginal, autocorr_residOriginal,rmseOriginalProp, maeOriginalProp,autocorr_residOriginal_Prop,rmseOriginalLSTM, maeOriginalLSTM, autocorr_residOriginal_LSTM, rmseTrasf2,maeTrasf2, autocorr_residTrasf2,  rmseTrasf2Prop, maeTrasf2Prop, autocorr_residTrasf2_Prop, rmseTrasf2LSTM, maeTrasf2LSTM,autocorr_residTrasf2_LSTM,list_diff,list_lamb):
+    # scriviamo su file excel i risultati
+    cell_index = 4 + i_test
+    worksheet.write('B' + str(cell_index), 'test' + str(i_test))
+    worksheet.write('C' + str(cell_index), rmseOriginal)
+    worksheet.write('D' + str(cell_index), maeOriginal)
+    worksheet.write('E' + str(cell_index), autocorr_residOriginal)
+    worksheet.write('F' + str(cell_index), rmseOriginalProp)
+    worksheet.write('G' + str(cell_index), maeOriginalProp)
+    worksheet.write('H' + str(cell_index), autocorr_residOriginal_Prop)
+    worksheet.write('I' + str(cell_index), rmseOriginalLSTM)
+    worksheet.write('J' + str(cell_index), maeOriginalLSTM)
+    worksheet.write('K' + str(cell_index), autocorr_residOriginal_LSTM)
+    worksheet.write('L' + str(cell_index), rmseTrasf2)
+    worksheet.write('M' + str(cell_index), maeTrasf2)
+    worksheet.write('N' + str(cell_index), autocorr_residTrasf2)
+    worksheet.write('O' + str(cell_index), rmseTrasf2Prop)
+    worksheet.write('P' + str(cell_index), maeTrasf2Prop)
+    worksheet.write('Q' + str(cell_index), autocorr_residTrasf2_Prop)
+    worksheet.write('R' + str(cell_index), rmseTrasf2LSTM)
+    worksheet.write('S' + str(cell_index), maeTrasf2LSTM)
+    worksheet.write('T' + str(cell_index), autocorr_residTrasf2_LSTM)
+
+    if(len(list_diff)>0):
+        worksheet.write('U' + str(cell_index), list_diff[0])
+        worksheet.write('V' + str(cell_index), list_lamb[0])
+
+    if(len(list_diff)>1):
+        worksheet.write('W' + str(cell_index), list_diff[1])
+        worksheet.write('X' + str(cell_index), list_lamb[1])
+
+    if (len(list_diff) > 2):
+        worksheet.write('Y' + str(cell_index), list_diff[2])
+        worksheet.write('Z' + str(cell_index), list_lamb[2])
+
+    if (len(list_diff) > 3):
+        worksheet.write('AA' + str(cell_index), list_diff[3])
+        worksheet.write('AB' + str(cell_index), list_lamb[3])
+
+
+
+
+
+
