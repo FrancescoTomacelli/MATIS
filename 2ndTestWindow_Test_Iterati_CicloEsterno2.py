@@ -12,6 +12,8 @@ import os
 import yfinance as yf
 from darts import TimeSeries
 import shutil
+import time
+
 
 
 serie0 = read_csv('D:/Universitaa/TESI/tests/Datasets/serie sintetiche non stazionarie arma signal/15_30_arma.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
@@ -25,7 +27,7 @@ serie7 = read_csv('D:/Universitaa/TESI/tests/Datasets/series stock/normal_noise.
 dir_path = 'D:/Universitaa/Anaconda/Tesi_Codice/.darts'
 
 ciclo_esterno=8
-i_ciclo=0
+i_ciclo=1
 start_ciclo=7
 
 for i_ciclo in range(start_ciclo,ciclo_esterno):
