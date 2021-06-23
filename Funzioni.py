@@ -241,10 +241,10 @@ def Normalize_Series(series):
 
 #trasformazioni inverse
 
-def InverseYeojohnson(seriesOriginal,sertrasf,lamb):
+def InverseYeojohnson(sertrasf,lamb):
     #in realtà seriesOriginal deve essere sempre la serieTrasf
     inv = list()
-    X = seriesOriginal.values
+    X = sertrasf.values
     X_trans = sertrasf.values
     for i in range(0, len(sertrasf)):
         if (X[i] >= 0 and lamb == 0):
@@ -278,7 +278,7 @@ def InvDiffByParticlePredicted(seriesPredicted,trainSetModified,particle):
     if (particle != 0):
         # per invertire i primi "particle" step della serie predetta
         # lavoro con gli ultimi "particle" value del train set della serie originale
-        # (perchè per invertire un il valore della predizione allo step [i] mi serve il valore della serie originale allo steo [i-particle]
+        # (perchè per invertire il valore della predizione allo step [i] mi serve il valore della serie originale allo step [i-particle]
         # che sono cioè gli ultimi "particle" step del train set
         seriesPredictedInv = list()
         for i in range(0, min(particle,len(seriesPredicted))):
@@ -287,7 +287,7 @@ def InvDiffByParticlePredicted(seriesPredicted,trainSetModified,particle):
 
         # una volta invertiti i primi "particle" step, per predirre i successivi non posso usare piu il train set
         # ma dovrei usare dei valori che rientrano nel test set, ma visto che in teoria noi i valori reali del test set non li conosciamo
-        # andiamo ad utilizzare i primi valori della predizione inverita che ci siamo calcolati prima
+        # andiamo ad utilizzare i primi valori della predizione inverita che ci siamo calcolati prima (al ciclo for sopra)
         for i in range(particle, len(seriesPredicted)):
             value = seriesPredicted[i] + seriesPredictedInv[i - particle]
             seriesPredictedInv.append(value)
@@ -2384,6 +2384,10 @@ def ATSS_Stationarize_Window(series):
 
         return [seriesTrasf2, seriesTrasf1, round(pos[1]), pos[0], cost]
 
+
+
+# FUNZIONI PER FARE TEST
+
 def ATSS(series):
     #questo è l'algoritmo finale
     #questa funzione prende in input una serie con diverse non stazionarietà
@@ -2392,7 +2396,7 @@ def ATSS(series):
     #normalizza i segmenti trasformati
     #ricongiunge i segmenti normalizzati
 
-    #restituisce in output la serie trasformata 1 e 2  ricongiunta e le lamb e diff applicate per i vari segmenti
+    #restituisce in output la serie trasformata 1 e 2 e le lamb e diff applicate per i vari segmenti
 
     #controlliamo prima di tutto se la serie è stazionaria o meno
     #se è stazionaria, non facciamo nessuna trasformazione e semplicemente restutiamo diff=0 e YJ=1.0
@@ -2433,6 +2437,24 @@ def ATSS(series):
         seriesTrasf1Recostructed = seriesTrasf1Recostructed.interpolate()
         seriesTrasf2Recostructed = seriesTrasf2Recostructed.interpolate()
 
-        return [seriesTrasf2Recostructed, seriesTrasf1Recostructed, list_diff, list_lamb]
+        return [seriesTrasf2Recostructed, seriesTrasf1Recostructed, list_diff, list_lamb,scaler2]
 
+def ATSS_Invert_Transformation(seriesTrasf2,seriesTrasf1,diff,lamb,scaler):
+    #inverto le trasformazioni seguendo l'ordine inverso di applicazione
+    seriesInverted = Invert_Normalize_Series(seriesTrasf2,scaler)
+    seriesInverted = InvertDiffByParticleValue(seriesTrasf1,seriesInverted,diff)
+    seriesInverted = InverseYeojohnson(seriesInverted,lamb)
 
+    seriesInverted.index = seriesTrasf2[diff:].index
+
+    return seriesInverted
+
+def ATSS_Invert_Prediction(seriesPredicted, seriesTrasf1, diff, lamb, scaler):
+    # applico le trasformazioni in ordine inverso alla predizione
+    seriesPredictedInverted = Invert_Normalize_Series(seriesPredicted, scaler)
+    seriesPredictedInverted = InvDiffByParticlePredicted(seriesPredictedInverted, seriesTrasf1, diff)
+    seriesPredictedInverted = InverseYeojohnson(seriesPredictedInverted, lamb)
+
+    # la predizione invertita che viene ritornata non ha l'index originale
+    # l'index deve essere copiato dal test set
+    return seriesPredictedInverted
