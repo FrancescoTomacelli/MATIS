@@ -26,9 +26,9 @@ serie6 = read_csv('D:/Universitaa/TESI/tests/Datasets/serie sintetiche stazionar
 serie7 = read_csv('D:/Universitaa/TESI/tests/Datasets/series stock/normal_noise.csv', header=0, index_col=0, parse_dates=True, squeeze=True)
 dir_path = 'D:/Universitaa/Anaconda/Tesi_Codice/.darts'
 
-ciclo_esterno=8
+ciclo_esterno=1
 i_ciclo=1
-start_ciclo=7
+start_ciclo=0
 
 for i_ciclo in range(start_ciclo,ciclo_esterno):
     if (i_ciclo == 0):

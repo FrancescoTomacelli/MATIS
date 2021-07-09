@@ -58,9 +58,9 @@ serie11 = 0
 serie12 = 0
 dir_path = 'D:/Universitaa/Anaconda/Tesi_Codice/.darts'
 
-ciclo_esterno=5
+ciclo_esterno=9
 i_ciclo=0
-start_ciclo=4
+start_ciclo=8
 
 for i_ciclo in range(start_ciclo,ciclo_esterno):
     counter_test = 2
