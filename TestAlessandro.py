@@ -23,7 +23,7 @@ plt.show()
 seriesTrasf2.plot(color='black')
 plt.show()
 
-'''
+
 #PREDIZIONE
 result = Funzioni.ProphetPredictSeries_Window90(seriesTrasf2, test_set)
 forecast = result[0]
@@ -38,6 +38,6 @@ test_set.plot(color='blue',label='original')
 forecastInverted.plot(color='red',label='forecast')
 plt.legend()
 plt.show()
-'''
+
 
 

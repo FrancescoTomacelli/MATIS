@@ -2142,7 +2142,7 @@ def ATSS_Apply_Transformation(series,p0,p1):
 
     return [seriesTrasf2,seriesTrasf1,p0,p1]
 
-def ATSS_Extract_Subseries(series):
+def ATSS_Extract_Subseries_Old(series):
     #la funzione prende in input una serie contenente diverse non stazionarietà
     #restituisce in output la serie scomposta in sottoserie in base alla non stazionarietà
 
@@ -2606,44 +2606,41 @@ def ATSS_Change_Point(series):
 
 
 
+def ATSS_Extract_Subseries(series):
+    # La funzione prende in input una serie contenente diverse non stazionarietà
+    # Restituisce in output la serie scomposta in sottoserie in base alla non stazionarietà
+    # La funzione crea delle finestre per studiare come varia la non stazionarietà della seire, andando ad analizzare come varia la trasformazione applicata dalla PSO nel tempo
+    # Per rendere le finestre piu generali possibili, ho scelto una grandezza di 5*maxAutocorrelationLag, in modo da essere sicuri di catturare eventuali periodicità
+    # La dimensione della window cambia nel tempo, quando vengono individuati cambiamnti significativi della diff  e dell'autocorrelation lag calcolato dalla finestra
+    # A quel punto la serie analizzata fino a quel momento viene droppata, viene ricalcolato il maxAutocorrelationLag sulla serie rimanente e viene ricalcolata la window
 
-def ATSS_Extract_Subseries2(series):
-    #la funzione prende in input una serie contenente diverse non stazionarietà
-    #restituisce in output la serie scomposta in sottoserie in base alla non stazionarietà
-
-    # la funzione crea delle finestre per studiare come varia la non stazionarietà della seire, andando ad analizzare come varia la trasformazione applicata dalla PSO nel tempo
-    # per rendere le finestre piu generali possibili, ho scelto una grandezza di 5*maxAutocorrelationLag, in modo da essere sicuri di catturare eventuali periodicità
-    # la dimensione della window cambia nel tempo, quando vengono individuati cambiamnti significativi della diff (e.g non multipli e non valori vicini)
-    # e quando viene identificato anche un cambiamento  significaivo dell' maxAutocorrelation lag
-    # a quel punto la serie analizzata fino a quel momento viene droppata, viene ricalcolato il maxAutocorrelationLag sulla serie rimanente e viene ricalcolata la window
-
-    max_autocorrelation_lag = FindAutocorrelationMaxLag(series)
-    #nel caso in cui non riesce a trovare un max_autocorr_lag all'inizio, a causa delle troppe non stazionarietà che confondono l'autocorrelazione
-    #inizializzo max_auto_lag a 30, in modo da avere una generica finestra di 150, che poi si adatterà successivamente da sola
-    if(max_autocorrelation_lag==0):
-        max_autocorrelation_lag=30
-
+    # list_par serve per tenere traccia delle diff applicate dalle finestre
+    # list_series_extracted serve per raccogliere le subseries individuate
     list_par = list()
-    list_lamb = list()
-    list_score = list()
-    list_window = list()
-    list_series_extracted=list()
-    list_autocorrelation_lags=list()
+    list_series_extracted = list()
 
-    i = 0  # mi fa muovere lungo la serie
-    wind = 5 * max_autocorrelation_lag  # è l'ampiezza della finestra
-    x = 0  # l'inizio della finestra
-    y = wind  # la fine della finestra
-    Count = 0  # mi serve come condizione per analizzare alla fine la serie completa
-    lastLap = False  #serve per fare l'ultima analisi con windows=len(series)
-    change = False # mi serve per fare la correzione dei lag nell'iterazione in cui c'è cambio di window
-    change_station = False  # indica se c'è stato un cambio di stationarietà, serve per estrarre l'ultimo pezzo della serie con non-stazionarietà diversa
-    oldCheckPoint = 0  # inizio di una porzione di serie con una certa non stazionarietà
-    num_nonStat_find = 1  #serve per tenere traccia di quanti segmenti di serie con diverse non-stazionarietà sono contenuti nella serie
-    counter_stationarity = 0 #mi serve per contare quante volte capita che la PSO applica diff=0 e lamb=1.0, cioè non applica trasformazioni , perchè se succede spesso allora non taglio la serie ma la considero nella sua interezza
-    while (Count < 2):
-        if (Count == 1):
-            Count = 2
+    # Calcolo il max autocorrelation lag su tutta la serie, per avere una prima indicazione sulla dimensione della finestra
+    max_autocorrelation_lag = FindAutocorrelationMaxLag2(series)
+
+    #dopo aver avuto l'inicazione sulla prima dimensione della finestra
+    #vado a raffinare la sua dimensione andando a cacolare il max autocorrelation lag all'interno della finestra (non più su tutta la serie)
+    #quello che otteniamo è il window lag, che viene poi usato per dare dimensione alla window
+    window_lag = FindAutocorrelationMaxLag2(series[0:max_autocorrelation_lag*5])
+
+    # Variabili per il funzionamento dell'algoritmo
+    # i serve per accedere alle varie liste
+    # wind è l'ampiezza della finestra
+    # x e y sono l'inzio e la fine della finestra
+    # End serve come condizione per terminare il ciclo quando ho analizzato tutta la serie
+    i = 0
+    wind = 5 * window_lag
+    x = 0
+    y = wind
+    End = False  #
+    oldCheckPoint = 0
+
+    while (End == False):
+
         batch = series.iloc[x:y]
 
         try:
@@ -2656,52 +2653,32 @@ def ATSS_Extract_Subseries2(series):
             seriesExtracted.append(series)
             return seriesExtracted
 
-        #se la PSO restituisce diff=0 e lamb=1 significa che la porzione di window è stazionaria, o ci sono delle stazionarietà all'interno della serie che la window non riesce a vedere
-        #per questo dopo 3 volte che la finestra restituisce una prozione stazionaria
-        #restituisco semplicemente la serie nella sua totalità senza scomporla, per analizzarla nella sua interezza
 
-        if(result[2]==0 and result[3]==1.0):
-            counter_stationarity = counter_stationarity+1
-            if(counter_stationarity == 3):
-                seriesExtracted = list()
-                seriesExtracted.append(series)
-                return seriesExtracted
-
-        #calcolo il maxAutocorrelation lag all'interno della finestra, per capire che periodicità c'è nella finestra
+        #calcolo ad ogni iterazione il maxAutocorrelation lag all'interno della finestra, per capire che periodicità c'è nella finestra
         lagBatch = FindAutocorrelationMaxLag2(batch)
-
-
+        #salvo il diff applicato
         list_par.append(result[2])
-        list_lamb.append(round(result[3], 2))
-        list_score.append(round(result[4], 2))
-        list_window.append((x, y, wind))
 
-        #questo if mi serve per aggiornare il max_autocorr_lag solo nel caso in cui il max_lag visto nella finestra è cambiato in modo significativo
-        # questo if mi serve per aggiornare il max_autocorr_lag solo nel caso in cui ci sono stati cambiamenti significativi della diff
-        if((lagBatch!=0 and (lagBatch<max_autocorrelation_lag-2 or lagBatch>max_autocorrelation_lag+2)) or (list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3)  ):
-           max_autocorrelation_lag=lagBatch
-           print('AAAAAAAAAAAA')
+        # Questo if serve per accorgersi del cambio di non stazionarietà
+        # Quando il correlation lag dell'attuale finestra è diverso  di un fattore 2 dal window_lag computato all'inizio. (il fattore 2 serve perchè lagBatch a volte oscilla di +/- 1 anche quando non ci sono cambiamenti. Quindi il fattore 2 serve per evitare falsi positivi)
+        # E quando il differencing si discosta dall'ultimo differencing applicato
+        # Allora c'è un cambio di non stazionarietà
 
-        list_autocorrelation_lags.append(max_autocorrelation_lag)
+        # Una volta entrato nell'if
+        # Estraggo la serie vista fin ora (sottoserie con una specifica non stazionarietà)
+        # Per individuare la nuova stazionarietà, ripeto i passaggi effettuati all'inzio, quindi:
+        # Calcolo il maxAutocorrealtionLag su tutta la serie rimanente per avere una prima indicazione sulla dimensione della finestra
+        # Vado a raffinare tale maxAutocorrelationLag calcolando il window_lag a solo sulla prima finestra della serie 0:5*max
+        # Ottenuto il nuovo window_lag, aggiorno la dimensione della finestra e continuo l'analisi
 
-        #questo if serve ad accorgersi del cambio di non stazionarietà, andando a confrontare gli ultimi 2 valori di max_autocorr_lag registrati
-        #se i due valori si discostano in modo significativo, allora la non stazionarietà potrebbe essere cambiata
-        if ((list_autocorrelation_lags[i] > list_autocorrelation_lags[i - 1] + 2 or list_autocorrelation_lags[i] < list_autocorrelation_lags[i - 1] - 2) and lastLap==False):
-            #quindi vado a ricalcolare il max_autocorrelation_lag con ciò che rimane della serie, droppando la parte analizzata fin ora
-
-            # rimuovo la serie analizzata fin ora
-            seriesHalf = series.drop(series.index[0:y])
-            seriesHalf.plot(color='black')
-            plt.show()
-            # ricalcolo il maxAutocorrelationLag con la serie rimanente
-            New_max_autocorrelation_lag = FindAutocorrelationMaxLag2(seriesHalf)
-
-            max_autocorrelation_lag = New_max_autocorrelation_lag
-
-            change=True
+        # if (((lagBatch<max_autocorrelation_lag-2 or lagBatch>max_autocorrelation_lag+2)) and (list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3) ):
+        if((lagBatch<window_lag-2 or lagBatch>window_lag+2) and list_par[i]!=list_par[i-1]):
             change_station = True
-            num_nonStat_find=num_nonStat_find+1
+            seriesHalf = series.drop(series.index[0:y])
 
+            #ricalcolo max_autocorr_lag e window_lag per ricalcolare dimensioni window
+            max_autocorrelation_lag= FindAutocorrelationMaxLag2(seriesHalf)
+            window_lag = FindAutocorrelationMaxLag2(seriesHalf[0:5*max_autocorrelation_lag])
 
             # estraggo la porzione di serie vista fino ad ora, che avrà una sua non stazionarietà, diversa dalle altre porzioni di serie
             newCheckPoint = x
@@ -2709,110 +2686,27 @@ def ATSS_Extract_Subseries2(series):
             list_series_extracted.append(seriesExtracted)
             oldCheckPoint = y
 
-        # una volta ricalcolato il max_autocorrelation lag, ricalcolo la dimensione della window
+            #ricalcolo la dimensione della finestra con il nuovo max_autocorr_lag trovato
+            wind = 5 * window_lag
 
-        wind = 5 * max_autocorrelation_lag
+        #faccio avanzare la finestra
         x = y
         y = min(len(series), y+wind )
 
-        #questo if serve per aggiornare la finestra a seguito di un cambio di non-stazionarietà
-        if(change==True):
-            batch = series.iloc[x:y]
-            lagBatch = FindAutocorrelationMaxLag2(batch)
-            if (lagBatch != 0):
-                max_autocorrelation_lag = lagBatch
-                list_autocorrelation_lags[i] = max_autocorrelation_lag
-            change=False
-
-        # se la window arriva all'ultimo valore della serie
-        # fa un'ultima analisi con una window pari alla dimensione della serie
-        # così da fare un'analisi della serie nella sua interezza
-        if (y == len(series) and Count == 0):
-            Count = 1
-            x = 0
-            wind = len(series)
-            lastLap=True
-
+        # se la window arriva all'ultimo valore della serie, termino il ciclo mettendo End=True ed estraggo l'eventuale ultimo pezzo analizzato
+        if (y == len(series)):
+            End = True
             if (change_station == True):
                 seriesExtracted = series[oldCheckPoint:y]
                 list_series_extracted.append(seriesExtracted)
             else:
                 list_series_extracted.append(series)
+        #ogni iterazione faccio aumentare i per accedere alle liste dei parametri
         i = i + 1
+
 
     return list_series_extracted
 
-def AR1Score2(seriesOriginal, seriesTrasf1, seriesTrasf2, particle, lamb):
-    #questa funzione prende la serie trasformata in input
-    #effettua una predizione usando un modello arma che decide in automatico i valori migliori per p,q
-    #applica alla predizione la trasfromazione inversa
-    #confronta la serie trasformata-predetta-invertita con il test set della serie originale
-    #calcola l'errore tra le due, questo errore è un indice della information loss causata dalle trasformazioni
-
-    # calcolo range
-    serMax = seriesOriginal.max()
-    serMin = seriesOriginal.min()
-    serRange = serMax - serMin
 
 
-    # le trasformazioni mi fanno perdere gli indici sottoforma di data
-    # quindi me li ricopio dalla serie originale
-    seriesTrasf1.index = seriesOriginal.index
-    seriesTrasf2.index = seriesOriginal.index
-
-    # preparo i train e test sets
-    size = len(seriesOriginal)
-    test = int(max((size * 0.1), particle))
-    train = size - test
-
-    # questo mi serve per confrontare la serie predetta invertita con l'originale
-    seriesTrainOriginal = seriesOriginal.iloc[:-test]
-    seriesTestOriginal = seriesOriginal.iloc[train:]
-
-    # questo mi serve per fare l'inversa della diff
-    seriesTrainTrasf1 = seriesTrasf1.iloc[:-test]
-    seriesTestTrasf1 = seriesTrasf1.iloc[train:]
-
-    # questo mi serve per fare la predizione
-    seriesTrainTrasf2 = seriesTrasf2.iloc[:-test]
-    seriesTestTrasf2 = seriesTrasf2.iloc[train:]
-
-    test_data = seriesTestTrasf2
-    train_data = seriesTrainTrasf2
-
-
-    # elimino i primi "particle" value, perchè la diff shifta in avanti la serie di un passo "particle" mettendo un numero di 0 pari a particle
-    # per non falsare la predizione, bisogna togliere questi 0 che shiftano
-    train_data = train_data.drop(train_data.index[0:particle])
-    model = ARIMA(train_data, order=(1, 0, 0))
-
-    model_fit = model.fit(disp=0)
-
-    forecast = model_fit.predict(start=len(train_data), end=len(test_data) + len(train_data) - 1)
-
-    seriesPredicted = Series(forecast)
-    seriesPredicted.index = seriesTestTrasf2.index
-    # seriesPredicted.plot(color='red')
-    # seriesTestTrasf2.plot()
-    # plt.show()
-
-    # inverto la predizione
-    seriesPredictedInv = InvDiffByParticlePredicted(seriesPredicted, seriesTrainTrasf1, particle)
-    seriesPredictedInv = InverseYeojohnson(seriesPredictedInv, seriesPredictedInv, lamb)
-
-    # calcolo l'errore tra test set originale e serie trasformata predetta invertita
-
-    seriesTestOriginal = Series(seriesTestOriginal.values)
-    rmse = sqrt(mean_squared_error(seriesTestOriginal, seriesPredictedInv))
-    rmseRange = rmse / serRange
-
-    # seriesPredictedInv.plot(color='red', label='Predicted')
-    # seriesTestOriginal.plot(label='Original')
-    # plt.legend()
-    # plt.title("Particle = {}   lambda= {}   rmse/range={}".format(particle, lamb, rmseRange))
-    # plt.show()
-
-
-
-    return rmseRange
 
