@@ -1582,7 +1582,7 @@ def GenerateSynSeries(length,RangeNoise,orderTrend,SinAmpl,fs,period,i_test,i_ci
         synSeries1 = list()
         for i in range(0, length):
             #data = x[i] + sineWave[i] + linearTrend[i]
-            data= sineWave[i] + linearTrend[i]
+            data= sineWave[i] + linearTrend[i] + 200
             synSeries1.append(data)
 
         synSeries1 = Series(synSeries1)
@@ -2711,8 +2711,8 @@ def ATSS_Extract_Subseries(series):
         i = i + 1
 
     for ser in list_series_extracted:
-        ser.plot(color='black')
 
-    plt.show()
+
+
     return list_series_extracted
 

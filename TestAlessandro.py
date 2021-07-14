@@ -2,7 +2,7 @@ import Funzioni
 from pandas import read_csv
 from matplotlib import pyplot as plt
 
-series = read_csv('D:/Universitaa/TESI/tests/Datasets/prova.csv',header=0, index_col=0, parse_dates=True, squeeze=True)
+series = read_csv('D:/Universitaa/TESI/tests/Datasets/serie _reali/Electric_Production.csv',header=0, index_col=0, parse_dates=True, squeeze=True)
 
 
 
