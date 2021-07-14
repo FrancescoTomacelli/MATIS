@@ -2419,8 +2419,11 @@ def ATSS(series):
             list_diff.append(diff)
             list_lamb.append(lamb)
 
+
+
             # normalizziamo  serTrasf2
             seriesTrasf2, scaler2 = Normalize_Series(seriesTrasf2)
+            seriesTrasf2.plot(color='black')
 
             # andiamo a ricollegare i "pezzi" trasformati 1
             initT1 = seriesTrasf1.index[0]
@@ -2435,7 +2438,7 @@ def ATSS(series):
         # interpoliamo le due ricostruzioni per riempire i valori mancanti
         seriesTrasf1Recostructed = seriesTrasf1Recostructed.interpolate()
         seriesTrasf2Recostructed = seriesTrasf2Recostructed.interpolate()
-
+        plt.show()
         return [seriesTrasf2Recostructed, seriesTrasf1Recostructed, list_diff, list_lamb,scaler2]
 
 def ATSS_Invert_Transformation(seriesTrasf2,seriesTrasf1,diff,lamb,scaler):
@@ -2632,16 +2635,19 @@ def ATSS_Extract_Subseries(series):
     # wind è l'ampiezza della finestra
     # x e y sono l'inzio e la fine della finestra
     # End serve come condizione per terminare il ciclo quando ho analizzato tutta la serie
+    # change_station serve per tenere traccia dell'avvenimento di un cambio di non stazionarietà
     i = 0
     wind = 5 * window_lag
     x = 0
     y = wind
     End = False  #
     oldCheckPoint = 0
+    change_station = False
 
     while (End == False):
 
         batch = series.iloc[x:y]
+
 
         try:
             result = ATSS_Stationarize_Window(batch)
@@ -2655,7 +2661,7 @@ def ATSS_Extract_Subseries(series):
 
 
         #calcolo ad ogni iterazione il maxAutocorrelation lag all'interno della finestra, per capire che periodicità c'è nella finestra
-        lagBatch = FindAutocorrelationMaxLag2(batch)
+        tmp_window_lag = FindAutocorrelationMaxLag2(batch)
         #salvo il diff applicato
         list_par.append(result[2])
 
@@ -2672,7 +2678,7 @@ def ATSS_Extract_Subseries(series):
         # Ottenuto il nuovo window_lag, aggiorno la dimensione della finestra e continuo l'analisi
 
         # if (((lagBatch<max_autocorrelation_lag-2 or lagBatch>max_autocorrelation_lag+2)) and (list_par[i] > list_par[i - 1] + 3 or list_par[i] < list_par[i - 1] - 3) ):
-        if((lagBatch<window_lag-2 or lagBatch>window_lag+2) and list_par[i]!=list_par[i-1]):
+        if((tmp_window_lag<window_lag-2 or tmp_window_lag>window_lag+2) and list_par[i]!=list_par[i-1]):
             change_station = True
             seriesHalf = series.drop(series.index[0:y])
 
@@ -2704,9 +2710,9 @@ def ATSS_Extract_Subseries(series):
         #ogni iterazione faccio aumentare i per accedere alle liste dei parametri
         i = i + 1
 
+    for ser in list_series_extracted:
+        ser.plot(color='black')
 
+    plt.show()
     return list_series_extracted
-
-
-
 
